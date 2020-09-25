@@ -136,7 +136,7 @@ ROCMExecutionProvider::ROCMExecutionProvider(const ROCMExecutionProviderInfo& in
 
   AllocatorCreationInfo pinned_memory_info(
       [](OrtDevice::DeviceId device_id) {
-        return onnxruntime::make_unique<ROCMPinnedAllocator>(device_id, CUDA_PINNED);
+        return onnxruntime::make_unique<ROCMPinnedAllocator>(device_id, GPU_PINNED);
       },
       DEFAULT_CPU_ALLOCATOR_DEVICE_ID);
 
