@@ -50,10 +50,10 @@
 #include "core/util/protobuf_parsing_utils.h"
 #include "core/util/thread_utils.h"
 
-#if !defined(ORT_MINIMAL_BUILD)
+// #if !defined(ORT_MINIMAL_BUILD)
 #include "core/framework/customregistry.h"
 #include "core/session/custom_ops.h"
-#endif
+// #endif
 
 using namespace ONNX_NAMESPACE;
 using namespace onnxruntime::experimental;
@@ -463,6 +463,7 @@ common::Status InferenceSession::AddCustomTransformerList(const std::vector<std:
 
   return Status::OK();
 }
+#endif
 
 common::Status InferenceSession::AddCustomOpDomains(const std::vector<OrtCustomOpDomain*>& op_domains) {
   std::shared_ptr<CustomRegistry> custom_registry;
@@ -481,10 +482,13 @@ common::Status InferenceSession::RegisterCustomRegistry(std::shared_ptr<CustomRe
   // Insert session-level customized kernel registry.
   kernel_registry_manager_.RegisterKernelRegistry(custom_registry->GetKernelRegistry());
 
+#if !defined(ORT_MINIMAL_BUILD)
   custom_schema_registries_.push_back(custom_registry->GetOpschemaRegistry());
+#endif
   return Status::OK();
 }
 
+#if !defined(ORT_MINIMAL_BUILD)
 common::Status InferenceSession::SaveToOrtFormat(const std::basic_string<ORTCHAR_T>& filepath) const {
   ORT_RETURN_IF_NOT(FLATBUFFERS_LITTLEENDIAN, "ort format only supports little-edian machines");
 
