@@ -1015,7 +1015,15 @@ Status InferenceSession::LoadOrtModel(std::function<Status()> load_ort_format_mo
 
   // need to go from unique_ptr to shared_ptr when moving into model_
   std::unique_ptr<Model> tmp_model;
+#if !defined(ORT_MINIMAL_BUILD)
+  ORT_RETURN_IF_ERROR(Model::LoadFromOrtFormat(*fbs_model,
+                                               HasLocalSchema() ? &custom_schema_registries_ : nullptr,
+                                               *session_logger_, tmp_model));
+
+#else
   ORT_RETURN_IF_ERROR(Model::LoadFromOrtFormat(*fbs_model, *session_logger_, tmp_model));
+#endif
+
   ORT_RETURN_IF_ERROR(SaveModelMetadata(*tmp_model));
   model_ = std::move(tmp_model);
 
