@@ -14,6 +14,7 @@
 #include "core/common/denormal.h"
 #include "core/common/logging/logging.h"
 #include "core/framework/allocatormgr.h"
+#include "core/framework/customregistry.h"
 #include "core/framework/error_code_helper.h"
 #include "core/framework/execution_frame.h"
 #include "core/framework/feeds_fetches_manager.h"
@@ -43,6 +44,7 @@
 #ifdef USE_DML  // TODO: This is necessary for the workaround in TransformGraph
 #include "core/providers/dml/DmlExecutionProvider/src/GraphTransformer.h"
 #endif
+#include "core/session/custom_ops.h"
 #include "core/session/environment.h"
 #include "core/session/IOBinding.h"
 #include "core/session/inference_session_utils.h"
@@ -50,10 +52,6 @@
 #include "core/util/protobuf_parsing_utils.h"
 #include "core/util/thread_utils.h"
 
-// #if !defined(ORT_MINIMAL_BUILD)
-#include "core/framework/customregistry.h"
-#include "core/session/custom_ops.h"
-// #endif
 
 using namespace ONNX_NAMESPACE;
 using namespace onnxruntime::experimental;

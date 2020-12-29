@@ -3,10 +3,6 @@
 
 #include "utils.h"
 
-// #include "core/session/onnxruntime_c_api.h"
-// #include "core/session/onnxruntime_session_options_config_keys.h"
-// #include "core/graph/constants.h"
-
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
 void cuda_add(int64_t, float*, const float*, const float*);
