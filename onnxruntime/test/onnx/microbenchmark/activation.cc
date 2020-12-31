@@ -304,7 +304,8 @@ BENCHMARK(BM_Sigmoid)
     ->Arg(160000)
     ->Arg(320000)
     ->Arg(640000)
-    ->Arg(1280000);
+    ->Arg(1280000)
+    ->Arg(128*1024*1024);
 
 static void BM_Softsign(benchmark::State& state) {
   RunSingleNode<Softsign<float>>("Softsign", "", {}, state, -2.0f, 2.0f);
