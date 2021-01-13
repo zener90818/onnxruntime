@@ -119,7 +119,7 @@ def main():
     else:
         section_sizes = get_section_sizes(args.binary_path, args.readelf_path, out_file)
         filesize = os.path.getsize(args.binary_path)
-        print('Sections total:{}'.format(get_sections_total_size(args.binary_path, args.readelf_path)), file=out_file)
+        print('Sections total:{}'.format(sum(section_sizes.values())), file=out_file)
         print('File size:{}'.format(filesize), file=out_file)
 
     if args.write_to:

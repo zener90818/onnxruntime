@@ -18,7 +18,7 @@ def _check_binary_size(path, readelf, threshold, os_str, arch, build_config):
     print('Section:size in bytes')
     # call get_section_sizes to dump the section info to stdout
     sections = readelf_utils.get_section_sizes(path, readelf, sys.stdout)
-    sections_total = readelf_utils.get_sections_total_size(path, readelf)
+    sections_total = sum(sections.values())
 
     print('Sections total={} bytes'.format(sections_total))
     print('File size={} bytes'.format(ondisk_size))
