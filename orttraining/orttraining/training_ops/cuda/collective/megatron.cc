@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-#include "nccl_kernels.h"
+#include "orttraining/training_ops/cuda/collective/nccl_kernels.h"
 #include "core/providers/cuda/tensor/identity_op.h"
 
 namespace onnxruntime {
