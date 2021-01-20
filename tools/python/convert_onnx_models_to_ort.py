@@ -12,18 +12,24 @@ import tempfile
 import onnxruntime as ort
 
 
-def create_config_file(optimized_model_path, config_file_path):
+def _create_config_file_from_onnx_models(optimized_model_path, config_file_path):
     script_path = os.path.dirname(os.path.realpath(__file__))
     ci_build_py_path = os.path.abspath(os.path.join(script_path, '..', 'ci_build'))
     sys.path.append(ci_build_py_path)
 
     # create config file from all the optimized models
-    print("Creating configuration file for operators required by optimized models in {}".format(config_file_path))
+    print("Creating configuration file for operators required by optimized models in {}".format(optimized_model_path))
     from exclude_unused_ops import exclude_unused_ops  # tools/ci_build/exclude_unused_ops.py
     exclude_unused_ops(optimized_model_path, config_path=None, ort_root=None, output_config_path=config_file_path)
 
 
-def convert(model_path: str, optimization_level: ort.GraphOptimizationLevel, use_nnapi: bool):
+def _create_config_file_from_ort_models(optimized_model_path, config_file_path, enable_type_reduction: bool):
+    print("Creating configuration file for operators required by ORT format models in {}.".format(optimized_model_path))
+    from util.ort_format_model import create_config_from_models
+    create_config_from_models(optimized_model_path, config_file_path, enable_type_reduction)
+
+
+def _convert(model_path: str, optimization_level: ort.GraphOptimizationLevel, use_nnapi: bool):
     models = glob.glob(os.path.join(model_path, '**', '*.onnx'), recursive=True)
 
     if len(models) == 0:
@@ -84,7 +90,7 @@ def convert(model_path: str, optimization_level: ort.GraphOptimizationLevel, use
             #     onnx_target_path, ort_target_path, orig_size, new_size, new_size - orig_size, new_size / orig_size))
 
         # now that all models are converted create the config file before the temp dir is deleted
-        create_config_file(tmpdirname, os.path.join(model_path, 'required_operators.config'))
+        # _create_config_file_from_onnx_models(tmpdirname, os.path.join(model_path, 'required_operators.config'))
 
 
 def _get_optimization_level(level):
@@ -129,6 +135,10 @@ def parse_args():
                              "the device you will run it on, as the generated model may not be valid on other hardware."
                         )
 
+    parser.add_argument('--enable_type_reduction', action='store_true',
+                        help='Add operator specific type information to the configuration file to reduce the types '
+                             'supported by the operator implementations.')
+
     parser.add_argument('model_path', help='Provide path to directory containing ONNX model/s to convert. '
                                            'Files with .onnx extension will be processed.')
 
@@ -138,7 +148,8 @@ def parse_args():
 def main():
     args = parse_args()
     optimization_level = _get_optimization_level(args.optimization_level)
-    convert(args.model_path, optimization_level, args.use_nnapi)
+    _convert(args.model_path, optimization_level, args.use_nnapi)
+    _create_config_file_from_ort_models(args.model_path, args.enable_type_reduction)
 
 
 if __name__ == '__main__':

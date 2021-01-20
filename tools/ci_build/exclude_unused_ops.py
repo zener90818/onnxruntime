@@ -55,6 +55,89 @@ def _extract_ops_from_config(file_path, required_ops):
 
     return required_ops  # end of _extract_ops_from_file(...)
 
+def parse_config(config_file: str):
+    '''
+    Parse the configuration file and return the required operators dictionary and an OperatorTypeUsageProcessor if
+    the config contains type info
+    :param config_file: Configuration file to parse
+    :return:
+    '''
+
+    # map of domain string to the C++ constant name used for the kernel registrations for domains we expect
+    # to be involved in an ORT format model.
+    domain_to_constant = {'ai.onnx': 'kOnnxDomain',
+                          'ai.onnx.ml': 'kMLDomain',
+                          'com.microsoft': 'kMSDomain'
+                          }
+
+    # open file
+    # read
+    # skip comments
+
+    if not os.path.isfile(config_file):
+        raise ValueError('Configuration file {} does not exist'.format(config_file))
+
+    required_ops = {}
+    op_type_usage_processor = OperatorTypeUsageProcessors()
+
+    with open(config_file, 'r') as config:
+        for line in [orig_line.strip() for orig_line in config.readlines()]:
+            if not line or line.startswith("#"):  # skip empty lines and comments
+                continue
+
+            domain, opset_str, operators_str = [segment.strip() for segment in line.split(';')]
+
+            if domain not in domain_to_constant:
+                raise ValueError('Unexpected domain. Please add handling to script for ' + domain)
+
+            domain_constant = domain_to_constant[domain]
+            opset = int(opset_str)
+
+            if '{' in operators_str:
+                # need to parse out type info
+                operators = set()
+                cur = 0
+                end = len(operators_str)
+                while cur < end:
+                    next_comma = operators_str.find(',', cur)
+                    next_open_brace = operators_str.find('{', cur)
+
+                    if next_open_brace > 0 and next_open_brace < next_comma:
+                        operator = operators_str[cur:next_open_brace].strip()
+                        operators.add(operator)
+
+                        # parse out the json dictionary with the type info
+                        i = next_open_brace + 1
+                        num_open_braces = 1
+                        while num_open_braces > 0 and i < end:
+                            if operators_str[i] == '{':
+                                num_open_braces += 1
+                            elif operators_str[i] == '}':
+                                num_open_braces -= 1
+                            i += 1
+
+                        if num_open_braces != 0:
+                            raise RuntimeError('Mismatched { and } in type string: ' + operators_str[next_open_brace:])
+
+                        type_str = operators_str[next_open_brace:i]
+                        op_type_usage_processor.update_using_config_entry(domain, operator, type_str)
+                        cur = i + 1
+                    else:
+                        # comma or end is next
+                        end_str = next_comma if next_comma != -1 else end
+                        operators.add(operators_str[cur:end_str].strip())
+                        cur = end_str + 1
+
+            else:
+                operators = set([op.strip() for op in operators_str.split(',')])
+
+            if domain_constant not in required_ops:
+                required_ops[domain_constant] = {opset: operators}
+            elif opset not in required_ops[domain_constant]:
+                required_ops[domain_constant][opset] = operators
+            else:
+                required_ops[domain_constant][opset].update(operators)
+
 
 def _extract_ops_from_graph(graph, operators, domain_opset_map):
     '''extract ops from graph and all subgraphs'''
@@ -72,7 +155,7 @@ def _extract_ops_from_graph(graph, operators, domain_opset_map):
                 _extract_ops_from_graph(attr.g, operators, domain_opset_map)
 
 
-def _extract_ops_from_model(model_path, required_ops):
+def _extract_ops_from_onnx_model(model_path, required_ops):
     '''extract ops from models under model_path and return a diction'''
 
     if not model_path:
@@ -214,7 +297,7 @@ def exclude_unused_ops(models_path, config_path, ort_root=None, use_cuda=True, o
     if not ort_root and not output_config_path:
         log.info('ort_root was not specified. Inferring ONNX Runtime repository root from location of this script.')
 
-    required_ops = _extract_ops_from_config(config_path, _extract_ops_from_model(models_path, {}))
+    required_ops = _extract_ops_from_config(config_path, _extract_ops_from_onnx_model(models_path, {}))
 
     if output_config_path:
         _create_config_file_with_required_ops(required_ops, models_path, config_path, output_config_path)
