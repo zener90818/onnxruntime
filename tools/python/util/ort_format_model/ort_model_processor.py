@@ -4,13 +4,13 @@
 import os
 import ort_flatbuffers_py.experimental.fbs as fbs  # noqa
 
-from .operator_type_usage_processors import OperatorTypeUsageProcessors
+from .operator_type_usage_processors import OperatorTypeUsageManager
 
 
 class OrtFormatModelProcessor:
     'Class to process an ORT format model and determine required operators and types.'
 
-    def __init__(self, model_path: str, required_ops: dict,  processors: OperatorTypeUsageProcessors):
+    def __init__(self, model_path: str, required_ops: dict,  processors: OperatorTypeUsageManager):
         '''
         Initialize ORT format model processor
         :param model_path: Path to model to load

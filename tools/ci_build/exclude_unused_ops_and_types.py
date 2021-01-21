@@ -12,11 +12,18 @@ import typing
 from logger import get_logger
 log = get_logger("exclude_unused_ops_and_types")
 
+script_path = os.path.dirname(os.path.realpath(__file__))
+ort_tools_py_path = os.path.abspath(os.path.join(script_path, '..', 'tools'))
+ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
+sys.path.append(ort_tools_py_path)
+from util import parse_config  # noqa
+from util.ort_format_model.operator_type_usage_processors import OperatorTypeUsageManager  # noqa
+
 
 class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.RegistrationProcessor):
-    def __init__(self, required_ops, op_type_usage_processor, output_file):
+    def __init__(self, required_ops, op_type_usage_manager, output_file):
         self._required_ops = required_ops
-        self._op_types_usage_processor = op_type_usage_processor
+        self._op_types_usage_processor = op_type_usage_manager
         self._output_file = output_file
 
     def _should_exclude_op(self, domain, operator, start_version, end_version):
@@ -30,11 +37,23 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
 
         return True
 
-    def process_registration(self, lines: typing.List[str], domain: str, operator: str,
+    def process_registration(self, lines: typing.List[str], constant_for_domain: str, operator: str,
                              start_version: int, end_version: int = None, input_type: str = None):
-        exclude = self._should_exclude_op(domain, operator, start_version, end_version)
+        # convert from the ORT constant name to the domain string used in the config
+        domain = op_registration_utils.map_ort_constant_to_domain(constant_for_domain)
+        exclude = False
+
+        if domain:
+            # see if entire op is excluded
+            exclude = self._should_exclude_op(domain, operator, start_version, end_version)
+
+            # see if a specific typed registration can be excluded
+            if not exclude and input_type and self._op_types_usage_processor:
+                exclude = not self._op_types_usage_processor.is_typed_registration_needed(domain, operator, input_type)
+
         if exclude:
-            log.info('Disabling {}:{}({})'.format(domain, operator, start_version))
+            log.info('Disabling {}:{}({}){}'.format(constant_for_domain, operator, start_version,
+                                                    '<{}>'.format(input_type) if input_type else ''))
             for line in lines:
                 self.output_file.write('// ' + line)
 
@@ -53,14 +72,13 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
 
 
 def _exclude_unused_ops_and_types_in_registrations(required_operators,
-                                                   op_type_usage_processor,
+                                                   op_type_usage_manager,
                                                    provider_registration_paths):
     '''rewrite provider registration file to exclude unused ops'''
 
     for kernel_registration_file in provider_registration_paths:
         if not os.path.isfile(kernel_registration_file):
-            log.warning('Kernel registration file {} does not exist'.format(kernel_registration_file))
-            return
+            raise ValueError('Kernel registration file {} does not exist'.format(kernel_registration_file))
 
         log.info("Processing {}".format(kernel_registration_file))
 
@@ -69,7 +87,8 @@ def _exclude_unused_ops_and_types_in_registrations(required_operators,
 
         # read from backup and overwrite original with commented out lines for any kernels that are not required
         with open(kernel_registration_file, 'w') as file_to_write:
-            processor = ExcludeOpsAndTypesRegistrationProcessor(required_operators, op_type_usage_processor,
+            processor = ExcludeOpsAndTypesRegistrationProcessor(required_operators,
+                                                                op_type_usage_manager,
                                                                 file_to_write)
 
             op_registration_utils.process_kernel_registration_file(backup_path, processor)
@@ -79,9 +98,9 @@ def _exclude_unused_ops_and_types_in_registrations(required_operators,
                 sys.exit(-1)
 
 
-def _generate_cpp_defines(ort_root, op_type_usage_processor):
+def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsageManager):
 
-    defines = op_type_usage_processor.get_cpp_defines()
+    defines = op_type_usage_manager.get_cpp_defines()
     if not defines:
         return
 
@@ -96,32 +115,41 @@ def _generate_cpp_defines(ort_root, op_type_usage_processor):
 
     # future: how/where will we write global type limitations?
     # should they come from the ops file or be separate? probably separate - may want to reduce types without
-    # reducing operators
+    # reducing operators. this can probably be handled by build.py as we should either use a set of global types
+    # OR a set of per-operator types but not both.
 
 
-def exclude_unused_ops_and_types(config_path, use_cuda=True):
+def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_cuda=True):
     script_path = os.path.dirname(os.path.realpath(__file__))
-    ort_tools_py_path = os.path.abspath(os.path.join(script_path, '..', 'tools'))
     ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
+    ort_tools_py_path = os.path.abspath(os.path.join(ort_root, 'python', 'tools'))
     sys.path.append(ort_tools_py_path)
     from util import parse_config
 
-    required_ops, op_type_usage_processor = parse_config(config_path)
+    required_ops, op_type_usage_manager = parse_config(config_path)
+
+    # if we're not doing type reduction, reset the op_type_usage_manager so it has no type info.
+    # this is easier than setting it to None and having `if op_type_usage_manager:` checks in lots of places
+    if not enable_type_reduction:
+        op_type_usage_manager = OperatorTypeUsageManager()
 
     registration_files = op_registration_utils.get_kernel_registration_files(ort_root, use_cuda)
-    _exclude_unused_ops_and_types_in_registrations(required_ops, op_type_usage_processor, registration_files)
 
-    _generate_cpp_defines(ort_root, op_type_usage_processor)
+    _exclude_unused_ops_and_types_in_registrations(required_ops, op_type_usage_manager, registration_files)
+
+    _generate_cpp_defines(ort_root, op_type_usage_manager)
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
-        description="Script to exclude unused operator kernels by disabling their registration in ONNXRuntime. "
-                    "The types supported by operator kernels may also be reduced if specified in the config file.")
+        description="Script to exclude unused operator kernels by disabling their registration in ONNX Runtime. "
+                    "The types supported by operator kernels may also be reduced if specified in the config file.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("--config_path", type=str, required=True,
-                        help="Path to configuration file with format of 'domain;opset;op1,op2...'")
+                        help="Path to configuration file. "
+                             "Create with <ORT root>/tools/python/create_reduced_build_config.py and edit if needed. "
+                             "See ")
 
     args = parser.parse_args()
     config_path = os.path.abspath(args.config_path)

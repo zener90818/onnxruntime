@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
@@ -6,21 +6,9 @@ import argparse
 import glob
 import os
 import re
-import sys
 import tempfile
 
 import onnxruntime as ort
-
-
-def _create_config_file_from_onnx_models(optimized_model_path, config_file_path):
-    script_path = os.path.dirname(os.path.realpath(__file__))
-    ci_build_py_path = os.path.abspath(os.path.join(script_path, '..', 'ci_build'))
-    sys.path.append(ci_build_py_path)
-
-    # create config file from all the optimized models
-    print("Creating configuration file for operators required by optimized models in {}".format(optimized_model_path))
-    from exclude_unused_ops import exclude_unused_ops  # tools/ci_build/exclude_unused_ops.py
-    exclude_unused_ops(optimized_model_path, config_path=None, ort_root=None, output_config_path=config_file_path)
 
 
 def _create_config_file_from_ort_models(optimized_model_path, config_file_path, enable_type_reduction: bool):
@@ -89,9 +77,6 @@ def _convert(model_path: str, optimization_level: ort.GraphOptimizationLevel, us
             # print("Serialized {} to {}. Sizes: orig={} new={} diff={} new:old={:.4f}:1.0".format(
             #     onnx_target_path, ort_target_path, orig_size, new_size, new_size - orig_size, new_size / orig_size))
 
-        # now that all models are converted create the config file before the temp dir is deleted
-        # _create_config_file_from_onnx_models(tmpdirname, os.path.join(model_path, 'required_operators.config'))
-
 
 def _get_optimization_level(level):
     if level == 'disable':
@@ -118,7 +103,9 @@ def parse_args():
         All files with a `.onnx` extension will be processed. For each one, an ORT format model will be created in the
         same directory. A configuration file will also be created called `required_operators.config`, and will contain
         the list of required operators for all converted models.
-        This configuration file should be used as input to the minimal build'''
+        This configuration file should be used as input to the minimal build via the `--include_ops_by_config` 
+        parameter.
+        '''
     )
 
     parser.add_argument('--use_nnapi', action='store_true',
@@ -136,8 +123,8 @@ def parse_args():
                         )
 
     parser.add_argument('--enable_type_reduction', action='store_true',
-                        help='Add operator specific type information to the configuration file to reduce the types '
-                             'supported by the operator implementations.')
+                        help='Add operator specific type information to the configuration file to potentiall reduce '
+                             'the types supported by individual operator implementations.')
 
     parser.add_argument('model_path', help='Provide path to directory containing ONNX model/s to convert. '
                                            'Files with .onnx extension will be processed.')

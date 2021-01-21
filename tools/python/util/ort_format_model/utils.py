@@ -3,7 +3,7 @@
 
 import os
 
-from .operator_type_usage_processors import OperatorTypeUsageProcessors
+from .operator_type_usage_processors import OperatorTypeUsageManager
 from .ort_model_processor import OrtFormatModelProcessor
 
 from ..logger import get_logger
@@ -15,10 +15,10 @@ def _extract_ops_and_types_from_ort_models(model_path_or_dir: str, enable_type_r
         raise ValueError('Path to model/s does not exist: {}'.format(model_path_or_dir))
 
     required_ops = {}
-    op_type_processors = OperatorTypeUsageProcessors() if enable_type_reduction else None
+    op_type_usage_manager = OperatorTypeUsageManager() if enable_type_reduction else None
 
     if os.path.isfile(model_path_or_dir):
-        model_processor = OrtFormatModelProcessor(model_path_or_dir, required_ops, op_type_processors)
+        model_processor = OrtFormatModelProcessor(model_path_or_dir, required_ops, op_type_usage_manager)
         model_processor.process()  # this updates required_ops and op_type_processors
         log.info('Processed {}'.format(model_path_or_dir))
     else:
@@ -26,14 +26,11 @@ def _extract_ops_and_types_from_ort_models(model_path_or_dir: str, enable_type_r
             for file in files:
                 model_path = os.path.join(root, file)
                 if file.lower().endswith('.ort'):
-                    model_processor = OrtFormatModelProcessor(model_path, required_ops, op_type_processors)
+                    model_processor = OrtFormatModelProcessor(model_path, required_ops, op_type_usage_manager)
                     model_processor.process()  # this updates required_ops and op_type_processors
                     log.info('Processed {}'.format(model_path))
 
-                elif file.lower().endswith('.onnx'):
-                    log.warning('Ignoring ONNX file {}'.format(model_path))
-
-    return required_ops, op_type_processors
+    return required_ops, op_type_usage_manager
 
 
 def create_config_from_models(model_path: str, output_file: str, enable_type_reduction: bool = True):

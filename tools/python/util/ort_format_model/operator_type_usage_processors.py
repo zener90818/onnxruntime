@@ -2,8 +2,7 @@
 # Licensed under the MIT License.
 
 import json
-import sys
-import ort_flatbuffers_py.experimental.fbs as fbs  # noqa
+import ort_flatbuffers_py.experimental.fbs as fbs
 
 from abc import ABC, abstractmethod
 from .types import value_name_to_typestr
@@ -247,7 +246,7 @@ def _create_operator_type_usage_processors():
     return operator_processors
 
 
-class OperatorTypeUsageProcessors:
+class OperatorTypeUsageManager:
     '''
     Class to manage the operator type usage processors.
     TODO: Currently the type tracking is not specific to a version of the operator.
@@ -269,6 +268,11 @@ class OperatorTypeUsageProcessors:
         return processor
 
     def process_node(self, node: fbs.Node, value_name_to_typeinfo: dict):
+        '''
+        Process a Node and record info on the types used.
+        :param node: Node from ORT model
+        :param value_name_to_typeinfo: Map of value names to TypeInfo instances
+        '''
         optype = node.OpType().decode()
         domain = node.Domain().decode() or 'ai.onnx'  # empty domain defaults to ai.onnx
 
@@ -276,6 +280,29 @@ class OperatorTypeUsageProcessors:
         op_processor = self._get_op_processor(key)
         if op_processor:
             op_processor.process_node(node, value_name_to_typeinfo)
+
+    def is_typed_registration_needed(self, domain: str, optype: str, registration_type: str):
+        '''
+        Given the string from a kernel registration, determine if the registration is required or not.
+        :param domain: Operator domain.
+        :param optype: Operator type.
+        :param registration_type: Type string from kernel registration
+        :return: True is required. False if not.
+        '''
+        needed = True  # we keep the registration unless the per-operator processor says not to
+        key = _create_op_key(domain, optype)
+        if key in self._operator_processors:
+            needed = self._operator_processors[key].is_typed_registration_needed(registration_type)
+
+        return needed
+
+    def get_cpp_defines(self):
+        '''
+        Get the C++ #defines that define the lists of types to enable for the operators we have type info for.
+        :return: List of strings with one #define per entry
+        '''
+        for key in sorted(self._operator_processors.keys()):
+            self._operator_processors[key].write_cpp_defines()
 
     def get_config_entry(self, domain: str, optype: str):
         '''
@@ -291,15 +318,13 @@ class OperatorTypeUsageProcessors:
 
         return config_str
 
-    def get_cpp_defines(self):
+    def restore_from_config_entry(self, domain: str, optype: str, config_entry: str):
         '''
-        Get the C++ #defines that define lists of types to enable.
-        :return:
+        Restore the per-operator type information from a configuration file entry.
+        :param domain: Operator domain.
+        :param optype: Operator type.
+        :param config_entry: JSON string with type info as created by get_config_entry
         '''
-        for key in sorted(self._operator_processors.keys()):
-            self._operator_processors[key].write_cpp_defines()
-
-    def update_using_config_entry(self, domain: str, optype: str, config_entry: str):
         key = _create_op_key(domain, optype)
         op_processor = self._get_op_processor(key)
         if op_processor:
