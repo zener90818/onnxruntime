@@ -2,8 +2,6 @@
 # Licensed under the MIT License.
 
 import os
-import sys
-
 from .ort_format_model import OperatorTypeUsageManager
 
 

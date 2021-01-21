@@ -1,10 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-import os
-import sys
-
-import ort_flatbuffers_py.experimental.fbs as fbs  # noqa
+import ort_flatbuffers_py.experimental.fbs as fbs
 
 
 class FbsTypeInfo:
@@ -80,5 +77,3 @@ def value_name_to_typestr(name: str, value_name_to_typeinfo: dict):
     type = get_typeinfo(name, value_name_to_typeinfo)
     type_str = FbsTypeInfo.typeinfo_to_str(type)
     return type_str
-
-

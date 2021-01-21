@@ -103,7 +103,7 @@ def parse_args():
         All files with a `.onnx` extension will be processed. For each one, an ORT format model will be created in the
         same directory. A configuration file will also be created called `required_operators.config`, and will contain
         the list of required operators for all converted models.
-        This configuration file should be used as input to the minimal build via the `--include_ops_by_config` 
+        This configuration file should be used as input to the minimal build via the `--include_ops_by_config`
         parameter.
         '''
     )

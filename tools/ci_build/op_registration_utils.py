@@ -14,32 +14,6 @@ from logger import get_logger
 log = get_logger("op_registration_utils")
 
 
-# def map_domain_to_constant(domain):
-#     '''
-#     Map a string domain value to the internal ONNX Runtime constant for that domain.
-#     :param domain: Domain string to map.
-#     :return:
-#     '''
-#
-#     # constants are defined in <ORT root>/include/onnxruntime/core/graph/constants.h
-#     domain_map = {'': 'kOnnxDomain',
-#                   'ai.onnx': 'kOnnxDomain',
-#                   'ai.onnx.ml': 'kMLDomain',
-#                   'ai.onnx.training': 'ai.onnx.training',  # we don't have a constant for the training domains currently
-#                   'ai.onnx.preview.training': 'ai.onnx.preview.training',
-#                   'com.microsoft': 'kMSDomain',
-#                   'com.microsoft.nchwc': 'kMSNchwcDomain',
-#                   'com.microsoft.mlfeaturizers': 'kMSFeaturizersDomain',
-#                   'com.microsoft.dml': 'kMSDmlDomain',
-#                   'com.intel.ai': 'kNGraphDomain',
-#                   'com.xilinx': 'kVitisAIDomain'}
-#     if domain in domain_map:
-#         return domain_map[domain]
-#     else:
-#         log.warning('Unknown domain of {}. Ignoring. Please update domain mapping information.'.format(domain))
-#         return 'Unknown'
-
-
 def map_ort_constant_to_domain(ort_constant_name: str):
     '''
     Map a string domain value to the internal ONNX Runtime constant for that domain.

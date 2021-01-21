@@ -1816,7 +1816,9 @@ def main():
 
     if args.include_ops_by_config:
         from exclude_unused_ops_and_types import exclude_unused_ops_and_types
-        exclude_unused_ops_and_types(args.config_path, args.enable_reduced_operator_type_support, args.use_cuda)
+        exclude_unused_ops_and_types(args.include_ops_by_config,
+                                     args.enable_reduced_operator_type_support,
+                                     args.use_cuda)
 
     if args.use_tensorrt:
         args.use_cuda = True

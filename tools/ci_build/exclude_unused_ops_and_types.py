@@ -122,12 +122,6 @@ def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsag
 
 
 def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_cuda=True):
-    script_path = os.path.dirname(os.path.realpath(__file__))
-    ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
-    ort_tools_py_path = os.path.abspath(os.path.join(ort_root, 'python', 'tools'))
-    sys.path.append(ort_tools_py_path)
-    from util import parse_config
-
     required_ops, op_type_usage_manager = parse_config(config_path)
 
     # if we're not doing type reduction, reset the op_type_usage_manager so it has no type info.

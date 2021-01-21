@@ -170,6 +170,7 @@ class OneHotProcessor(TypeUsageProcessor):
 
         aggregate_info = {'custom': sorted(self._triples)}
         entry = json.dumps(aggregate_info)
+        return entry
 
     def from_config_entry(self, entry: str):
         self._triples.clear()
