@@ -10,14 +10,16 @@ import sys
 import typing
 
 from logger import get_logger
-log = get_logger("exclude_unused_ops_and_types")
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-ort_tools_py_path = os.path.abspath(os.path.join(script_path, '..', 'tools'))
 ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
+ort_tools_py_path = os.path.abspath(os.path.join(ort_root, 'tools', 'python'))
 sys.path.append(ort_tools_py_path)
+
 from util import parse_config  # noqa
 from util.ort_format_model.operator_type_usage_processors import OperatorTypeUsageManager  # noqa
+
+log = get_logger("exclude_unused_ops_and_types")
 
 
 class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.RegistrationProcessor):
@@ -27,12 +29,12 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
         self._output_file = output_file
 
     def _should_exclude_op(self, domain, operator, start_version, end_version):
-        if domain not in self.required_ops:
+        if domain not in self._required_ops:
             return True
 
-        for opset in self.required_ops[domain]:
+        for opset in self._required_ops[domain]:
             if opset >= start_version and (end_version is None or opset <= end_version):
-                if operator in self.required_ops[domain][opset]:
+                if operator in self._required_ops[domain][opset]:
                     return False  # found a match, do not exclude
 
         return True
@@ -55,17 +57,17 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
             log.info('Disabling {}:{}({}){}'.format(constant_for_domain, operator, start_version,
                                                     '<{}>'.format(input_type) if input_type else ''))
             for line in lines:
-                self.output_file.write('// ' + line)
+                self._output_file.write('// ' + line)
 
             # edge case of last entry in table where we still need the terminating }; to not be commented out
             if lines[-1].rstrip().endswith('};'):
-                self.output_file.write('};\n')
+                self._output_file.write('};\n')
         else:
             for line in lines:
-                self.output_file.write(line)
+                self._output_file.write(line)
 
     def process_other_line(self, line):
-        self.output_file.write(line)
+        self._output_file.write(line)
 
     def ok(self):
         return True
@@ -111,7 +113,7 @@ def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsag
         output.write('// Licensed under the MIT License.\n\n')
         output.write('#pragma once\n\n')
 
-        [output.write('{}\n'.format(define) for define in defines)]
+        [output.write('{}\n'.format(define)) for define in defines]
 
     # future: how/where will we write global type limitations?
     # should they come from the ops file or be separate? probably separate - may want to reduce types without
@@ -146,12 +148,12 @@ if __name__ == "__main__":
                     "The types supported by operator kernels may also be reduced if specified in the config file.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--config_path", type=str, required=True,
+    parser.add_argument("config_path", type=str,
                         help="Path to configuration file. "
                              "Create with <ORT root>/tools/python/create_reduced_build_config.py and edit if needed. "
-                             "See ")
+                             "See /docs/ONNX_Runtime_Format_Model_Usage.md for more information.")
 
     args = parser.parse_args()
     config_path = os.path.abspath(args.config_path)
 
-    exclude_unused_ops_and_types(config_path, use_cuda=True)
+    exclude_unused_ops_and_types(config_path, enable_type_reduction=True, use_cuda=True)

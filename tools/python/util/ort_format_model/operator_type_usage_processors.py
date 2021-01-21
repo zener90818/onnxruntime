@@ -301,8 +301,11 @@ class OperatorTypeUsageManager:
         Get the C++ #defines that define the lists of types to enable for the operators we have type info for.
         :return: List of strings with one #define per entry
         '''
+        defines = []
         for key in sorted(self._operator_processors.keys()):
-            self._operator_processors[key].write_cpp_defines()
+            defines.extend(self._operator_processors[key].get_cpp_defines())
+
+        return defines
 
     def get_config_entry(self, domain: str, optype: str):
         '''
