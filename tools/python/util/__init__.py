@@ -10,4 +10,4 @@ try:
     import flatbuffers  # noqa
     from .reduced_build_config_parser import parse_config
 except ImportError:
-    pass
+    get_logger('tools_python_utils').info('flatbuffers module is not installed. parse_config will not be available')
