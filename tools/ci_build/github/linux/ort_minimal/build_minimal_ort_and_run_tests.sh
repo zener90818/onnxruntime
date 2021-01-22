@@ -5,6 +5,7 @@
 # The build will run the unit tests for the minimal build, followed by running onnx_test_runner 
 # for the E2E test cases.
 
+
 set -e
 set -x
 

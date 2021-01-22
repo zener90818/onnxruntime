@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script will run a full ORT build and use the python package built to generate ort format test files
-# which will be used in build_minimal_ort_and_run_tests.sh
+# which will be used in build_minimal_ort_and_run_tests.sh and nnapi_minimal_build_minimal_ort_and_run_tests.sh
 
 set -e
 set -x
@@ -35,7 +35,10 @@ python3 /onnxruntime_src/tools/python/convert_onnx_models_to_ort.py \
 # find /onnxruntime_src/onnxruntime/test/testdata/ort_minimal_e2e_test_data -type f -name "*.onnx" -delete
 
 # Uninstall the ORT python wheel
-python3 -m pip uninstall -y onnxruntime
+# python3 -m pip uninstall -y onnxruntime
+# Leave onnxruntime installed as we need it to convert models to ORT format in 
+# build_minimal_ort_and_run_tests.sh and nnapi_minimal_build_minimal_ort_and_run_tests.sh
+
 
 # Clear the build
 rm -rf /build/Debug
