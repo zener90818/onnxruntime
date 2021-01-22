@@ -2,7 +2,13 @@
 # Licensed under the MIT License.
 
 import os
-from .ort_format_model import OperatorTypeUsageManager
+
+try:
+    import flatbuffers  # noqa
+    have_flatbuffers = True
+    from .ort_format_model import OperatorTypeUsageManager  # noqa
+except ImportError:
+    have_flatbuffers = False
 
 
 def parse_config(config_file: str):
@@ -41,7 +47,7 @@ def parse_config(config_file: str):
         raise ValueError('Configuration file {} does not exist'.format(config_file))
 
     required_ops = {}
-    op_type_usage_manager = OperatorTypeUsageManager()
+    op_type_usage_manager = OperatorTypeUsageManager() if have_flatbuffers else None
 
     with open(config_file, 'r') as config:
         for line in [orig_line.strip() for orig_line in config.readlines()]:
@@ -53,6 +59,10 @@ def parse_config(config_file: str):
 
             # any type reduction information is serialized json that starts/ends with { and }
             if '{' in operators_str:
+                if not have_flatbuffers:
+                    raise RuntimeError('flatbuffers python module must be installed '
+                                       'to process a configuration with type information')
+
                 # parse individual entries in the line. type info is optional for each operator.
                 operators = set()
                 cur = 0
