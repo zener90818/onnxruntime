@@ -11,9 +11,11 @@ import tempfile
 import onnxruntime as ort
 
 
-def _create_config_file_from_ort_models(optimized_model_path, config_file_path, enable_type_reduction: bool):
-    print("Creating configuration file for operators required by ORT format models in {}.".format(optimized_model_path))
+def _create_config_file_from_ort_models(optimized_model_path, enable_type_reduction: bool):
+    config_file_path = os.path.join(optimized_model_path, 'required_operators.config')
+    print("Creating configuration file for operators required by ORT format models in {}.".format(config_file_path))
     from util.ort_format_model import create_config_from_models
+
     create_config_from_models(optimized_model_path, config_file_path, enable_type_reduction)
 
 

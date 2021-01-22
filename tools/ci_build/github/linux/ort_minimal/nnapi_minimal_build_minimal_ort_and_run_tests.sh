@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# This script will run a full ORT build and use the python package built to generate ort format test files,
-# and the exclude ops config file, which will be used in the build_minimal_ort_and_run_tests.sh
-
-# This script takes one command line argument, the root of the current Onnx Runtime project
+# This script takes one command line argument, the root of the current ONNX Runtime project
 
 set -e
 set -x
@@ -16,13 +13,12 @@ rm -rf $ORT_ROOT/build
 rm -rf $ORT_ROOT/build_nnapi
 
 # Build with reduced ops requires onnx
-python3 -m pip install -U --user onnx
+# python3 -m pip install -U --user onnx
 
-# Copy all the models containing the required ops to pass the UT
-mkdir -p $TMPDIR/.test_data/models_to_include
-cp $ORT_ROOT/onnxruntime/test/testdata/ort_github_issue_4031.onnx $TMPDIR/.test_data/models_to_include
-cp $ORT_ROOT/onnxruntime/test/testdata/mnist.onnx $TMPDIR/.test_data/models_to_include
-cp $ORT_ROOT/onnxruntime/test/testdata/ort_minimal_test_models/*.onnx $TMPDIR/.test_data/models_to_include
+# generate config for ops and types used in the .ort models in the testdata dir
+python3 $ORT_ROOT/tools/python/create_reduced_build_config --format ORT --enable_type_reduction \
+    $ORT_ROOT/onnxruntime/test/testdata \
+    $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config
 
 # Build minimal package for Android x86_64 Emulator
 # No test will be triggered in the build process
@@ -43,8 +39,7 @@ python3 $ORT_ROOT/tools/ci_build/build.py \
     --disable_rtti \
     --disable_ml_ops \
     --disable_exceptions \
-    --include_ops_by_model $TMPDIR/.test_data/models_to_include/ \
-    --include_ops_by_config $ORT_ROOT/onnxruntime/test/testdata/reduced_ops_via_config.config \
+    --include_ops_by_config $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config \
     --skip_tests
 
 # Push onnxruntime_test_all and testdata to emulator

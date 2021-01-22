@@ -33,19 +33,33 @@ def _extract_ops_and_types_from_ort_models(model_path_or_dir: str, enable_type_r
     return required_ops, op_type_usage_manager
 
 
-def create_config_from_models(model_path: str, output_file: str, enable_type_reduction: bool = True):
+def create_config_from_models(model_path_or_dir: str, output_file: str = None, enable_type_reduction: bool = True):
+    '''
+    Create a configuration file with required operators and optionally required types.
+    :param model_path_or_dir: Path to recursively search for ORT format models, or to a single ORT format model.
+    :param output_file: File to write configuration to.
+                        Defaults to creating required_operators.config in the model_path_or_dir directory.
+    :param enable_type_reduction: Include required type information for individual operators in the configuration.
+    '''
 
-    required_ops, op_type_processors = _extract_ops_and_types_from_ort_models(model_path, enable_type_reduction)
+    required_ops, op_type_processors = _extract_ops_and_types_from_ort_models(model_path_or_dir, enable_type_reduction)
 
-    directory, filename = os.path.split(output_file)
-    if not filename:
-        raise RuntimeError("Invalid output path for configuation: {}".format(output_file))
+    if output_file:
+        directory, filename = os.path.split(output_file)
+        if not filename:
+            raise RuntimeError("Invalid output path for configuration: {}".format(output_file))
 
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    else:
+        dir = model_path_or_dir
+        if os.path.isfile(model_path_or_dir):
+            dir = os.path.basename(model_path_or_dir)
+
+        output_file = os.path.join(dir, 'required_operators.config')
 
     with open(output_file, 'w') as out:
-        out.write("# Generated from models in {}\n".format(model_path))
+        out.write("# Generated from model/s in {}\n".format(model_path_or_dir))
 
         for domain in sorted(required_ops.keys()):
             for opset in sorted(required_ops[domain].keys()):
