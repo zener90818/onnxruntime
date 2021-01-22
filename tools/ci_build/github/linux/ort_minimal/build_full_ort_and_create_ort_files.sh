@@ -30,15 +30,17 @@ python3 -m pip install --user /build/Debug/dist/*
 python3 /onnxruntime_src/tools/python/convert_onnx_models_to_ort.py \
     /onnxruntime_src/onnxruntime/test/testdata/ort_minimal_e2e_test_data
 
-# Delete all the .onnx files, because the minimal build tests do not use onnx files
-# ??? Why delete these files. Should be ignored by tests that don't use them.
-# find /onnxruntime_src/onnxruntime/test/testdata/ort_minimal_e2e_test_data -type f -name "*.onnx" -delete
+# Create /onnxruntime_src/onnxruntime/test/testdata/required_operators.config from the .ort files in testdata.
+# This is used by build_minimal_ort_and_run_tests.sh
+python3 /onnxruntime_src/tools/python/create_reduced_build_config.py --format ORT \
+    /onnxruntime_src/onnxruntime/test/testdata \
+    /onnxruntime_src/onnxruntime/test/testdata/required_operators.config
 
-# Uninstall the ORT python wheel
-# python3 -m pip uninstall -y onnxruntime
-# Leave onnxruntime installed as we need it to convert models to ORT format in 
-# build_minimal_ort_and_run_tests.sh and nnapi_minimal_build_minimal_ort_and_run_tests.sh
-
+# And create a config with type reduction 
+# This is used by build_minimal_ort_and_run_tests.sh and nnapi_minimal_build_minimal_ort_and_run_tests.sh
+python3 /onnxruntime_src/tools/python/create_reduced_build_config.py --format ORT --enable_type_reduction \
+    /onnxruntime_src/onnxruntime/test/testdata \
+    /onnxruntime_src/onnxruntime/test/testdata/required_ops_and_types.config
 
 # Clear the build
 rm -rf /build/Debug

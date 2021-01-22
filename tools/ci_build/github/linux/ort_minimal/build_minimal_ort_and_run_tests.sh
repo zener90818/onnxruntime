@@ -9,10 +9,7 @@
 set -e
 set -x
 
-# Clear the previous build
-rm -rf /build/Debug
-
-# Create /onnxruntime_src/onnxruntime/test/testdata/required_operators.config from the .ort files in testdata.
+# /onnxruntime_src/onnxruntime/test/testdata/required_operators.config from the .ort files in testdata.
 # This includes models in /onnxruntime_src/onnxruntime/test/testdata/ort_minimal_e2e_test_data
 # that were converted to ORT format by build_full_ort_and_create_ort_files.sh
 python3 /onnxruntime_src/tools/python/convert_onnx_models_to_ort.py \

@@ -12,14 +12,6 @@ MIN_BUILD_DIR=$ORT_ROOT/build_nnapi_minimal
 rm -rf $ORT_ROOT/build
 rm -rf $ORT_ROOT/build_nnapi
 
-# Build with reduced ops requires onnx
-# python3 -m pip install -U --user onnx
-
-# generate config for ops and types used in the .ort models in the testdata dir
-python3 $ORT_ROOT/tools/python/create_reduced_build_config --format ORT --enable_type_reduction \
-    $ORT_ROOT/onnxruntime/test/testdata \
-    $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config
-
 # Build minimal package for Android x86_64 Emulator
 # No test will be triggered in the build process
 # UT will be triggered separately below
