@@ -15,6 +15,11 @@ rm -rf $ORT_ROOT/build_nnapi
 # make sure flatbuffers is installed to parse required_ops_and_types.config
 python3 -m pip install --user flatbuffers
 
+cd $ORT_ROOT
+git status
+
+cat $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config
+
 # Build minimal package for Android x86_64 Emulator
 # No test will be triggered in the build process
 # UT will be triggered separately below

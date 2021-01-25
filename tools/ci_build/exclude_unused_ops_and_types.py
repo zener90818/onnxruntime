@@ -124,6 +124,12 @@ def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsag
 def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_cuda=True):
     required_ops, op_type_usage_manager = parse_config(config_path)
 
+    # TEMPORARY DUMP
+    for domain, opset_ops in required_ops.items():
+        for opset, ops in opset_ops:
+            print('{}:[{}]'.format(opset, ','.join(ops)))
+    print('type reduction:{}'.format(enable_type_reduction))
+
     # if we're not doing type reduction, reset the op_type_usage_manager so it has no type info.
     # this is easier than setting it to None and having `if op_type_usage_manager:` checks in lots of places
     if not enable_type_reduction:
