@@ -48,15 +48,8 @@ jobs:
     workingDirectory: '$(Build.SourcesDirectory)\cmake\external\onnx'
     displayName: 'Install ONNX'
 
-  - task: PythonScript@0
-    displayName: 'Create config from testdata .onnx models'
-    inputs:
-      scriptPath: '$(Build.SourcesDirectory)\tools\python\create_reduced_build_config.py'
-      arguments: '"$(Build.SourcesDirectory)\onnxruntime\test\testdata" "$(Build.SourcesDirectory)\onnxruntime\test\testdata\testdata_required_ops.config"'
-      workingDirectory: '$(Build.BinariesDirectory)'
-
   - powershell: |
-     Get-Content testdata_required_ops.config, reduced_ops_via_config.config | Set-Content combined_required_ops.config
+     Get-Content required_ops.config, reduced_ops_via_config.onnx_model_with_included_ops.config | Set-Content combined_required_ops.config
     workingDirectory: '$(Build.SourcesDirectory)\onnxruntime\test\testdata'
     displayName: 'Merge required ops config files'
 

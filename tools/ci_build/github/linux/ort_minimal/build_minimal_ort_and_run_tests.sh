@@ -18,7 +18,7 @@ python3 /onnxruntime_src/tools/ci_build/build.py \
     --parallel \
     --minimal_build \
     --disable_ml_ops \
-    --include_ops_by_config /onnxruntime_src/onnxruntime/test/testdata/required_operators.config
+    --include_ops_by_config /onnxruntime_src/onnxruntime/test/testdata/required_ops.config
 
 # Run the e2e test cases
 /build/Debug/onnx_test_runner /onnxruntime_src/onnxruntime/test/testdata/ort_minimal_e2e_test_data

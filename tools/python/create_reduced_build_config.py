@@ -105,16 +105,18 @@ def main():
     argparser.add_argument('config_path', type=str, help='Path to write configuration file to.')
 
     args = argparser.parse_args()
+    model_path_or_dir = os.path.abspath(args.model_path_or_dir)
+    config_path = os.path.abspath(args.config_path)
 
     if args.enable_type_reduction and args.format == 'ONNX':
         print('Type reduction requires model format to be ORT.', file=sys.stderr)
         sys.exit(-1)
 
     if args.format == 'ONNX':
-        create_config_from_onnx_models(args.model_path_or_dir, args.config_path)
+        create_config_from_onnx_models(model_path_or_dir, config_path)
     else:
         from util.ort_format_model import create_config_from_models as create_config_from_ort_models
-        create_config_from_ort_models(args.model_path_or_dir, args.config_path, args.enable_type_reduction)
+        create_config_from_ort_models(model_path_or_dir, config_path, args.enable_type_reduction)
 
         # Debug code to validate that the config parsing matches
         # from util import parse_config
