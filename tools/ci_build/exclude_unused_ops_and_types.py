@@ -25,7 +25,7 @@ log = get_logger("exclude_unused_ops_and_types")
 class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.RegistrationProcessor):
     def __init__(self, required_ops, op_type_usage_manager, output_file):
         self._required_ops = required_ops
-        self._op_types_usage_processor = op_type_usage_manager
+        self._op_types_usage_manager = op_type_usage_manager
         self._output_file = output_file
 
     def _should_exclude_op(self, domain, operator, start_version, end_version):
@@ -56,8 +56,8 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
             exclude = self._should_exclude_op(domain, operator, start_version, end_version)
 
             # see if a specific typed registration can be excluded
-            if not exclude and input_type and self._op_types_usage_processor:
-                exclude = not self._op_types_usage_processor.is_typed_registration_needed(domain, operator, input_type)
+            if not exclude and input_type and self._op_types_usage_manager:
+                exclude = not self._op_types_usage_manager.is_typed_registration_needed(domain, operator, input_type)
 
         if exclude:
             log.info('Disabling {}:{}({}){}'.format(constant_for_domain, operator, start_version,
@@ -108,7 +108,7 @@ def _exclude_unused_ops_and_types_in_registrations(required_operators,
 
 def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsageManager):
 
-    defines = op_type_usage_manager.get_cpp_defines()
+    defines = op_type_usage_manager.get_cpp_defines() if op_type_usage_manager else None
     if not defines:
         return
 
@@ -128,18 +128,7 @@ def _generate_cpp_defines(ort_root: str, op_type_usage_manager: OperatorTypeUsag
 
 
 def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_cuda=True):
-    required_ops, op_type_usage_manager = parse_config(config_path)
-
-    # TEMPORARY DUMP
-    for domain, opset_ops in required_ops.items():
-        for opset, ops in opset_ops.items():
-            log.info('{}:[{}]'.format(opset, ','.join(ops)))
-    log.info('type reduction:{}'.format(enable_type_reduction))
-
-    # if we're not doing type reduction, reset the op_type_usage_manager so it has no type info.
-    # this is easier than setting it to None and having `if op_type_usage_manager:` checks in lots of places
-    if not enable_type_reduction:
-        op_type_usage_manager = OperatorTypeUsageManager()
+    required_ops, op_type_usage_manager = parse_config(config_path, enable_type_reduction)
 
     registration_files = op_registration_utils.get_kernel_registration_files(ort_root, use_cuda)
 

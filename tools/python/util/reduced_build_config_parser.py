@@ -11,7 +11,7 @@ except ImportError:
     have_flatbuffers = False
 
 
-def parse_config(config_file: str):
+def parse_config(config_file: str, enable_type_reduction: bool = False):
     '''
     Parse the configuration file and return the required operators dictionary and an OperatorTypeUsageManager.
     The basic configuration file format is `domain;opset;op1,op2...`
@@ -38,6 +38,11 @@ def parse_config(config_file: str):
         `{"custom": ["float_int64_t_int64_t", "int64_t_string_int64_t"]}`
 
     :param config_file: Configuration file to parse
+    :param enable_type_reduction: Set to True to use the type information in the config.
+                                  If False the type information will be ignored.
+                                  If the flatbuffers module is unavailable the type information will also be ignored
+                                  as the usage of the type information is via OperatorTypeUsageManager which has a
+                                  dependency on the ORT flatbuffers python schema.
     :return: required_ops, op_type_usage_manager:
              Dictionary of domain:opset:[ops] for required operators
              OperatorTypeUsageManager manager with operator specific type usage information if available.
@@ -47,7 +52,7 @@ def parse_config(config_file: str):
         raise ValueError('Configuration file {} does not exist'.format(config_file))
 
     required_ops = {}
-    op_type_usage_manager = OperatorTypeUsageManager() if have_flatbuffers else None
+    op_type_usage_manager = OperatorTypeUsageManager() if enable_type_reduction and have_flatbuffers else None
 
     with open(config_file, 'r') as config:
         for line in [orig_line.strip() for orig_line in config.readlines()]:
@@ -59,10 +64,6 @@ def parse_config(config_file: str):
 
             # any type reduction information is serialized json that starts/ends with { and }
             if '{' in operators_str:
-                if not have_flatbuffers:
-                    raise RuntimeError('flatbuffers python module must be installed '
-                                       'to process a configuration with type information')
-
                 # parse individual entries in the line. type info is optional for each operator.
                 operators = set()
                 cur = 0
@@ -70,6 +71,9 @@ def parse_config(config_file: str):
                 while cur < end:
                     next_comma = operators_str.find(',', cur)
                     next_open_brace = operators_str.find('{', cur)
+
+                    if next_comma == -1:
+                        next_comma = end
 
                     # the json string starts with '{', so if that is found (next_open_brace != -1)
                     # before the next comma we have type info to parse
@@ -90,8 +94,10 @@ def parse_config(config_file: str):
                         if num_open_braces != 0:
                             raise RuntimeError('Mismatched { and } in type string: ' + operators_str[next_open_brace:])
 
-                        type_str = operators_str[next_open_brace:i]
-                        op_type_usage_manager.restore_from_config_entry(domain, operator, type_str)
+                        if op_type_usage_manager:
+                            type_str = operators_str[next_open_brace:i]
+                            op_type_usage_manager.restore_from_config_entry(domain, operator, type_str)
+
                         cur = i + 1
                     else:
                         # comma or end is next

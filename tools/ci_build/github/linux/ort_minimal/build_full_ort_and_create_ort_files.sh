@@ -35,7 +35,7 @@ python3 /onnxruntime_src/tools/python/convert_onnx_models_to_ort.py \
 # and will include ops for the E2E models we just converted
 python3 /onnxruntime_src/tools/python/create_reduced_build_config.py --format ORT \
     /onnxruntime_src/onnxruntime/test/testdata \
-    /onnxruntime_src/onnxruntime/test/testdata/ort_models_required_ops.config
+    /onnxruntime_src/onnxruntime/test/testdata/required_ops.ort_models.config
 
 # Re-create testdata/required_ops_and_types.config.
 # This is meaningful when nnapi_minimal_build_minimal_ort_and_run_tests.sh runs later in the
