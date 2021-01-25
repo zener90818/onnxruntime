@@ -29,14 +29,20 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
         self._output_file = output_file
 
     def _should_exclude_op(self, domain, operator, start_version, end_version):
+        log.info('domain:{} op:{} start:{} end:{}'.format(domain, operator, start_version, end_version))
         if domain not in self._required_ops:
+            log.info('domain not found')
             return True
 
         for opset in self._required_ops[domain]:
+            log.info('checking opset {}'.format(opset))
             if opset >= start_version and (end_version is None or opset <= end_version):
                 if operator in self._required_ops[domain][opset]:
                     return False  # found a match, do not exclude
+                else:
+                    log.info('no match in required ops')
 
+        log.info('returning True')
         return True
 
     def process_registration(self, lines: typing.List[str], constant_for_domain: str, operator: str,
@@ -127,8 +133,8 @@ def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_c
     # TEMPORARY DUMP
     for domain, opset_ops in required_ops.items():
         for opset, ops in opset_ops.items():
-            print('{}:[{}]'.format(opset, ','.join(ops)))
-    print('type reduction:{}'.format(enable_type_reduction))
+            log.info('{}:[{}]'.format(opset, ','.join(ops)))
+    log.info('type reduction:{}'.format(enable_type_reduction))
 
     # if we're not doing type reduction, reset the op_type_usage_manager so it has no type info.
     # this is easier than setting it to None and having `if op_type_usage_manager:` checks in lots of places

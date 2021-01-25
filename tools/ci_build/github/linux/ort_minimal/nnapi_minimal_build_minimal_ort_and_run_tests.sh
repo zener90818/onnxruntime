@@ -19,6 +19,7 @@ cd $ORT_ROOT
 git status
 
 cat $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config
+python3 $ORT_ROOT/tools/ci_build/exclude_unused_ops_and_types.py $ORT_ROOT/onnxruntime/test/testdata/required_ops_and_types.config
 
 # Build minimal package for Android x86_64 Emulator
 # No test will be triggered in the build process
