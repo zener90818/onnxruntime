@@ -13,11 +13,15 @@ e.g.
   - Linux Debug build
     - /build/Linux/external/flatbuffers/Debug/flatc
 
-To update the ORT file format
+To update the ORT file format schema and generated files:
 1. Modify the [the ORT file format schema](ort.fbs)
 2. Use the FlatBuffers compiler to generate [the C++ header file](ort.fbs.h).
-  - Change to the directory containing this file (onnxruntime/core/flatbuffers) and run as follows. Adjust paths depending on the build configuration used to create flatc.exe. The example was from a Debug build.
+  - Change to the directory containing this file (onnxruntime/core/flatbuffers) and run as follows. Adjust paths depending on the build configuration used to refer to the flatc[.exe] binary. 
+  e.g. 
+    Windows
     `> ..\..\..\build\Windows\Debug\external\flatbuffers\Debug\flatc.exe --cpp --scoped-enums --filename-suffix .fbs ort.fbs`
+    Linux
+    `> ../../../build/Linux/Debug/external/flatbuffers/flatc --cpp --scoped-enums --filename-suffix .fbs ort.fbs`
 
   Verify that this results in ort.fbs.h being updated.
 
@@ -30,7 +34,7 @@ To update the ORT file format
 Initial support for FlatBuffers that includes Model support. Graph support including Attributes, Tensors, Tensor Sequences, Maps and Sequences. Constant initializers are also supported. Constant nodes are converted to constant initializers in the ORT format.
 
 ## Version 2. 
-Support for sparse initialiers. Sparse intializers are stored within ORT FlatBuffers format, which includes sparse initializers converted from Constant node attribute.
+Support for sparse initializers. Sparse intializers are stored within ORT FlatBuffers format, which includes sparse initializers converted from a Constant node attribute.
 
 ## Version 3. 
 Support for storing `graph_doc_string` field in Model (ORT FlatBuffers format).

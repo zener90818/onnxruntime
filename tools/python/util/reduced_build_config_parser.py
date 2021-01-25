@@ -3,6 +3,7 @@
 
 import os
 
+# Check if the flatbuffers module is available. If not we cannot handle type reduction information in the config.
 try:
     import flatbuffers  # noqa
     have_flatbuffers = True
@@ -13,7 +14,7 @@ except ImportError:
 
 def parse_config(config_file: str, enable_type_reduction: bool = False):
     '''
-    Parse the configuration file and return the required operators dictionary and an OperatorTypeUsageManager.
+    Parse the configuration file and return the required operators dictionary, and an OperatorTypeUsageManager.
     The basic configuration file format is `domain;opset;op1,op2...`
     e.g. `ai.onnx;11;Add,Cast,Clip,...
 
@@ -40,12 +41,13 @@ def parse_config(config_file: str, enable_type_reduction: bool = False):
     :param config_file: Configuration file to parse
     :param enable_type_reduction: Set to True to use the type information in the config.
                                   If False the type information will be ignored.
-                                  If the flatbuffers module is unavailable the type information will also be ignored
+                                  If the flatbuffers module is unavailable any type information will be ignored
                                   as the usage of the type information is via OperatorTypeUsageManager which has a
                                   dependency on the ORT flatbuffers python schema.
     :return: required_ops, op_type_usage_manager:
              Dictionary of domain:opset:[ops] for required operators
-             OperatorTypeUsageManager manager with operator specific type usage information if available.
+             OperatorTypeUsageManager manager with operator specific type usage information if available. None if
+             type reduction was disabled, or the flatbuffers module is not available.
     '''
 
     if not os.path.isfile(config_file):
@@ -62,9 +64,10 @@ def parse_config(config_file: str, enable_type_reduction: bool = False):
             domain, opset_str, operators_str = [segment.strip() for segment in line.split(';')]
             opset = int(opset_str)
 
-            # any type reduction information is serialized json that starts/ends with { and }
+            # any type reduction information is serialized json that starts/ends with { and }.
+            # type info is optional for each operator.
             if '{' in operators_str:
-                # parse individual entries in the line. type info is optional for each operator.
+                # parse the entries in the json dictionary with type info
                 operators = set()
                 cur = 0
                 end = len(operators_str)
@@ -76,12 +79,14 @@ def parse_config(config_file: str, enable_type_reduction: bool = False):
                         next_comma = end
 
                     # the json string starts with '{', so if that is found (next_open_brace != -1)
-                    # before the next comma we have type info to parse
+                    # before the next comma (which would be the start of the next operator if there is no type info
+                    # for the current operator), we have type info to parse
                     if 0 < next_open_brace < next_comma:
                         operator = operators_str[cur:next_open_brace].strip()
                         operators.add(operator)
 
-                        # parse out the json dictionary with the type info
+                        # parse out the json dictionary with the type info by finding the closing brace that matches
+                        # the opening brace
                         i = next_open_brace + 1
                         num_open_braces = 1
                         while num_open_braces > 0 and i < end:
@@ -100,7 +105,7 @@ def parse_config(config_file: str, enable_type_reduction: bool = False):
 
                         cur = i + 1
                     else:
-                        # comma or end is next
+                        # comma or end of line is next
                         end_str = next_comma if next_comma != -1 else end
                         operators.add(operators_str[cur:end_str].strip())
                         cur = end_str + 1

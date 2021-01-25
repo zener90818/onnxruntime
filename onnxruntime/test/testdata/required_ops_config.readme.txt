@@ -5,7 +5,7 @@ required_ops.config:
     python ../../../tools/python/create_reduced_build_config.py . required_ops.config
   Contains:
     List of all the required operators for .onnx models in the testdata directory.
-    Note that add_opset_314159.onnx adds a spurious opset for 'Add' so the config file will contain an entry for that.
+      Note that add_opset_314159.onnx adds a spurious opset for 'Add' so the config file will contain an entry for that.
 
 required_operators_and_types.config
   To generate/update:

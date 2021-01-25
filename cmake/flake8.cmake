@@ -44,7 +44,7 @@ if(flake8_BIN)
         )
 
         # generated flatbuffer schema files
-        list(FILTER python_scripts EXCLUDE REGEX "onnxruntime/core/flatbuffers")
+        list(FILTER python_scripts EXCLUDE REGEX "onnxruntime/core/flatbuffers/ort_flatbuffers_py")
 
         # scripts in these directories still need updating
         list(FILTER python_scripts EXCLUDE REGEX "onnxruntime/core/providers/nuphar")

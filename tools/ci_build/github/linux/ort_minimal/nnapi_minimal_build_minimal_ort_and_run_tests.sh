@@ -12,12 +12,11 @@ MIN_BUILD_DIR=$ORT_ROOT/build_nnapi_minimal
 rm -rf $ORT_ROOT/build
 rm -rf $ORT_ROOT/build_nnapi
 
-# make sure flatbuffers is installed to parse required_ops_and_types.config
+# make sure flatbuffers is installed as it's required to parse required_ops_and_types.config
 python3 -m pip install --user flatbuffers
 
-# Build minimal package for Android x86_64 Emulator
-# No test will be triggered in the build process
-# UT will be triggered separately below
+# Build minimal package for Android x86_64 Emulator.
+# The unit tests in onnxruntime_test_all will be run on the Android simulator 
 python3 $ORT_ROOT/tools/ci_build/build.py \
     --build_dir $MIN_BUILD_DIR \
     --config Debug \

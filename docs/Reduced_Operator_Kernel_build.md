@@ -10,12 +10,11 @@ See the [build instructions](https://github.com/microsoft/onnxruntime/blob/maste
 
 When building ORT with a reduced set of kernel registrations, `--skip_tests` **MUST** be specified as the kernel reduction will render many of the unit tests invalid. 
 
-NOTE: The operator exclusion logic when building with an operator reduction configuration file will only disable kernel registrations each time it runs. It will NOT re-enable previously disabled kernels. If you wish to change the list of kernels included, it is best to revert the repository to a clean state (`git reset --hard`) before building ORT again.
+NOTE: The operator exclusion logic when building with an operator reduction configuration file will only disable kernel registrations each time it runs. It will NOT re-enable previously disabled kernels. If you wish to change the list of kernels included, it is best to revert the repository to a clean state (e.g. via `git reset --hard`) before building ORT again.
 
+## Creating a configuration file with the required kernels
 
-## Creating configuration file with required kernels
-
-The script in `<ORT Root>/tools/python/create_reduced_build_config.py` should be used to create the configuration file. This file can be manually edited as needed. The configuration can be created from either ONNX or ORT format models, but not both.
+The script in `<ORT Root>/tools/python/create_reduced_build_config.py` should be used to create the configuration file. This file can be manually edited as needed. The configuration can be created from either ONNX or ORT format models.
 
 ```
 create_reduced_build_config.py --help
@@ -38,12 +37,13 @@ optional arguments:
 
 If the configuration file is created using ORT format models, the input/output types that individual operators require can be tracked if `--enable_type_reduction` is specified. This can be used to further reduce the build size if `--enable_reduced_operator_type_support` is specified when building ORT.
 
-ONNX format models do not include the necessary type information required so cannot be used with this option.
+ONNX format models are not guaranteed to include the required per-node type information, so cannot be used with this option.
 
 ## Configuration file format
 
 The basic format of the operator reduction configuration file is `<operator domain>;<opset for domain>;<op1>[,op2]...`
 
+e.g.
 ```
 #domain;opset;op1,op2...
 ai.onnx;12;Add,Cast,Concat,Squeeze
@@ -60,7 +60,7 @@ Additionally, the ONNX operator specs for [DNN](https://github.com/onnx/onnx/blo
 
 If the types an operator implementation supports can be limited to a specific set of types, this is specified in a JSON string immediately after the operator name in the configuration file.
 
-**It is highly recommended that you first generate the configuration file using ORT format models with type reduction enabled in order to see which operators support type reduction and how the entry is defined for the individual operators.**
+**It is highly recommended that you first generate the configuration file using ORT format models with type reduction enabled in order to see which operators support type reduction, and how the entry is defined for the individual operators.**
 
 The required types are generally listed per input and/or output of the operator. The type information is in a map, with 'inputs' and 'outputs' keys. The value for 'inputs' or 'outputs' is a map between the index number of the input/output and the required list of types.
 
@@ -71,10 +71,11 @@ which is added directly after the operator name in the configuration file.
 e.g.
   `ai.onnx;12;Add,Cast{"inputs": {"0": ["float", "int32_t"]}, "outputs": {"0": ["float", "int64_t"]}},Concat,Squeeze`
 
-If for example the types of inputs 0 and 1 were important, the entry may look like this (e.g. ai.onnx:Gather):
+If, for example, the types of inputs 0 and 1 were important, the entry may look like this (e.g. ai.onnx:Gather):
   `{"inputs": {"0": ["float", "int32_t"], "1": ["int32_t"]}}`
 
 Finally some operators do non-standard things and store their type information under a 'custom' key.
 ai.onnx.OneHot is an example of this, where 3 type names from the inputs are combined into a string.
   `{"custom": ["float_int64_t_int64_t", "int64_t_string_int64_t"]}`
 
+For these reasons, it is best to generate the configuration file first, and manually edit any entries if needed. 

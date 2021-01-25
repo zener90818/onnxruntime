@@ -11,6 +11,7 @@ import typing
 
 from logger import get_logger
 
+# add the path to /tools/python so we can import the config parsing and type reduction processing
 script_path = os.path.dirname(os.path.realpath(__file__))
 ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
 ort_tools_py_path = os.path.abspath(os.path.join(ort_root, 'tools', 'python'))
@@ -29,20 +30,14 @@ class ExcludeOpsAndTypesRegistrationProcessor(op_registration_utils.Registration
         self._output_file = output_file
 
     def _should_exclude_op(self, domain, operator, start_version, end_version):
-        log.info('domain:{} op:{} start:{} end:{}'.format(domain, operator, start_version, end_version))
         if domain not in self._required_ops:
-            log.info('domain not found')
             return True
 
         for opset in self._required_ops[domain]:
-            log.info('checking opset {}'.format(opset))
             if opset >= start_version and (end_version is None or opset <= end_version):
                 if operator in self._required_ops[domain][opset]:
                     return False  # found a match, do not exclude
-                else:
-                    log.info('no match in required ops')
 
-        log.info('returning True')
         return True
 
     def process_registration(self, lines: typing.List[str], constant_for_domain: str, operator: str,

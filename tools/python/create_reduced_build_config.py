@@ -40,7 +40,8 @@ def _process_onnx_model(model_path, required_ops):
         elif opset.version not in required_ops[domain]:
             required_ops[domain][opset.version] = set()
 
-    # check the model imports some opsets. if it doesn't it's an unexpected edge case we ignore
+    # check the model imports at least one opset. if it does not it's an unexpected edge case that we have to ignore
+    # as we don't know what opset nodes in the graph belong to.
     if domain_opset_map:
         _extract_ops_from_onnx_graph(model.graph, required_ops, domain_opset_map)
 

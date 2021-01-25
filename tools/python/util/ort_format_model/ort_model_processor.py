@@ -25,8 +25,8 @@ class OrtFormatModelProcessor:
     def _setup_type_info(graph: fbs.Graph, outer_scope_value_typeinfo={}):
         '''
         Setup the node args for this level of Graph.
-        We copy the current list which represents the valid outer scope values, and add the local node args to that
-        to create the valid list for the current Graph.
+        We copy the current list which represents the outer scope values, and add the local node args to that
+        to create the valid list of values for the current Graph.
         :param graph: Graph to create NodeArg list for
         :param outer_scope_value_typeinfo: TypeInfo for outer scope values. Empty for the top-level graph in a model.
         :return: Dictionary of NodeArg name to TypeInfo
@@ -49,11 +49,8 @@ class OrtFormatModelProcessor:
     def _process_graph(self, graph: fbs.Graph, outer_scope_value_typeinfo: dict):
         '''
         Process one level of the Graph, descending into any subgraphs when they are found
-        :param ancestor_nodeargs: Outer scope NodeArg dictionary from ancestor graphs
+        :param outer_scope_value_typeinfo: Outer scope NodeArg dictionary from ancestor graphs
         '''
-
-        # print(dir(graph.Nodes(0)))
-
         # Merge the TypeInfo for all values in this level of the graph with the outer scope value TypeInfo.
         value_name_to_typeinfo = OrtFormatModelProcessor._setup_type_info(graph, outer_scope_value_typeinfo)
 
@@ -76,7 +73,7 @@ class OrtFormatModelProcessor:
                     self._process_graph(attr.G(), value_name_to_typeinfo)
                 elif attr_type == fbs.AttributeType.AttributeType.GRAPHS:
                     # the ONNX spec doesn't currently define any operators that have multiple graphs in an attribute
-                    # so this isn't really necessary
+                    # so entering this 'elif' isn't currently possible
                     for k in range(0, attr.GraphsLength()):
                         self._process_graph(attr.Graphs(k), value_name_to_typeinfo)
 

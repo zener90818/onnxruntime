@@ -49,10 +49,19 @@ class TypeUsageProcessor(ABC):
 
     @abstractmethod
     def to_config_entry(self):
+        '''
+        Generate a configuration file entry in JSON format with the required types for the operator.
+        :return: JSON string with required type information.
+        '''
         pass
 
     @abstractmethod
     def from_config_entry(self, entry: str):
+        '''
+        Re-create the types required from a configuration file entry created with to_config_entry.
+        NOTE: Any existing type information should be cleared prior to re-creating from a config file entry.
+        :param entry: Configuration file entry
+        '''
         pass
 
 
@@ -62,6 +71,14 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
     '''
 
     def __init__(self, domain: str, optype: str, inputs: [int] = [0], outputs: [int] = []):
+        '''
+        Create DefaultTypeUsageProcessor. Types for one or more inputs and/or outputs can be tracked by the processor.
+        The default is to track the types required for input 0, as this is the most common use case in ONNX.
+        :param domain: Operator domain.
+        :param optype: Operator name.
+        :param inputs: Inputs to track. Zero based index. May be empty.
+        :param outputs: Outputs to track. Zero based index. May be empty.
+        '''
         super().__init__(domain, optype)
         self._input_types = {}
         self._output_types = {}
@@ -71,6 +88,9 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
 
         for o in outputs:
             self._output_types[o] = set()
+
+        if not inputs and not outputs:
+            raise ValueError('At least one input or output must be tracked')
 
     def process_node(self, node: fbs.Node, value_name_to_typeinfo: dict):
         for i in self._input_types.keys():
@@ -91,11 +111,15 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
 
     def is_typed_registration_needed(self, type_in_registration: str):
         if 0 not in self._input_types.keys():
-            raise RuntimeError('Expected typed registration to be done using type from input 0.')
+            # currently all standard typed registrations are for input 0.
+            # custom registrations can be handled by operator specific processors (e.g. OneHotProcessor below).
+            raise RuntimeError('Expected typed registration to use type from input 0.')
 
         return type_in_registration in self._input_types[0]
 
     def get_cpp_defines(self):
+        # TODO: This is placeholder example output. It needs to be updated to generate the required output
+        # TODO: once the type reduction infrastructure is finalized.
         defines = []
         for i in sorted(self._input_types.keys()):
             if self._input_types[i]:
@@ -110,9 +134,10 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
         return defines
 
     def to_config_entry(self):
+        # convert the sets of types to lists so they can easily written out using the json model
         aggregate_info = {'inputs': {}, 'outputs': {}}
 
-        # filter out empty entries and output nicely sorted
+        # filter out empty entries and sort the types
         for i in sorted(self._input_types.keys()):
             if self._input_types[i]:
                 aggregate_info['inputs'][i] = sorted(self._input_types[i])
@@ -121,6 +146,7 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
             if self._output_types[o]:
                 aggregate_info['outputs'][o] = sorted(self._output_types[o])
 
+        # remove any empty keys
         if not aggregate_info['inputs']:
             aggregate_info.pop('inputs')
         if not aggregate_info['outputs']:
@@ -144,7 +170,10 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
 
 
 class OneHotProcessor(TypeUsageProcessor):
-    'Processor for the OneHot operator'
+    '''
+    Processor for the OneHot operator, which requires custom logic as the type registration key is a concatenation of
+    the three types involved instead of a single type name.
+    '''
     def __init__(self):
         super().__init__('ai.onnx', 'OneHot')
         self._triples = set()
@@ -157,11 +186,13 @@ class OneHotProcessor(TypeUsageProcessor):
         self._triples.add(key)
 
     def is_typed_registration_needed(self, type_in_registration):
-        # the OneHot registration creates a triple from the 3 types involved
+        # the OneHot registration involves a concatenation of the 3 types involved, in the format we match
+        # when adding values in process_node
         return type_in_registration in self._triples
 
     def get_cpp_defines(self):
-        # exclusion via registration so don't need to write any #defines
+        # exclusion is via commenting out the registration entry, so don't need to write any #defines
+        # to disable type support for the OneHot operator
         return None
 
     def to_config_entry(self):
@@ -182,7 +213,7 @@ class OneHotProcessor(TypeUsageProcessor):
 def _create_operator_type_usage_processors():
     '''
     Create a set of processors that determine the required types for all enabled operators.
-    :return: Dictionary of operator key to processor. Key is 'domain:operator'.
+    :return: Dictionary of operator key to processor. Key is 'domain:operator (e.g. ai.onnx:Cast)'.
     '''
     operator_processors = {}
 
@@ -241,7 +272,7 @@ def _create_operator_type_usage_processors():
     add(DefaultTypeUsageProcessor('ai.onnx', 'QuantizeLinear', inputs=[], outputs=[0]))
 
     # OneHot concatenates type strings into a triple in the typed registration
-    # e.g. float_int64_t_int64_t
+    #   e.g. float_int64_t_int64_t
     add(OneHotProcessor())
 
     return operator_processors
@@ -256,9 +287,10 @@ class OperatorTypeUsageManager:
     '''
     def __init__(self):
         self._all_operator_processors = _create_operator_type_usage_processors()  # all possible processors
-        self._operator_processors = {}  # processors we have actually used.
+        self._operator_processors = {}  # processors we have actually used so we can limit output to be meaningful
 
     def _get_op_processor(self, key):
+        'Add the processor to _operator_processors as it is about to be used.'
         processor = None
         if key in self._all_operator_processors:
             if key not in self._operator_processors:
@@ -271,7 +303,7 @@ class OperatorTypeUsageManager:
     def process_node(self, node: fbs.Node, value_name_to_typeinfo: dict):
         '''
         Process a Node and record info on the types used.
-        :param node: Node from ORT model
+        :param node: Node from ORT format model
         :param value_name_to_typeinfo: Map of value names to TypeInfo instances
         '''
         optype = node.OpType().decode()
@@ -282,18 +314,18 @@ class OperatorTypeUsageManager:
         if op_processor:
             op_processor.process_node(node, value_name_to_typeinfo)
 
-    def is_typed_registration_needed(self, domain: str, optype: str, registration_type: str):
+    def is_typed_registration_needed(self, domain: str, optype: str, type_registration_str: str):
         '''
         Given the string from a kernel registration, determine if the registration is required or not.
         :param domain: Operator domain.
         :param optype: Operator type.
-        :param registration_type: Type string from kernel registration
+        :param type_registration_str: Type string from kernel registration
         :return: True is required. False if not.
         '''
         needed = True  # we keep the registration unless the per-operator processor says not to
         key = _create_op_key(domain, optype)
         if key in self._operator_processors:
-            needed = self._operator_processors[key].is_typed_registration_needed(registration_type)
+            needed = self._operator_processors[key].is_typed_registration_needed(type_registration_str)
 
         return needed
 

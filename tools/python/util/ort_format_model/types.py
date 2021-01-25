@@ -55,8 +55,9 @@ class FbsTypeInfo:
             # to the onnxruntime::Tensor class so we're really returning the type inside the Tensor not vector<Tensor>.
             # For now, return the element type (which will be the Tensor element type, or a map<A,B>) as
             # an operator input or output will either be a sequence or a not, so we don't need to disambiguate
-            # between the two.
-            # type_str = 'std::vector<{}>'.format(elem_type_str)
+            # between the two (i.e. we know if the returned value refers to the contents of a sequence, and can
+            # handle whether it's the element type of a Tensor in the sequence, or the map type in a sequence of maps
+            # due to this).
             type_str = elem_type_str
         else:
             raise ValueError('Unknown or missing value type of {}'.format(value_type))
@@ -65,7 +66,7 @@ class FbsTypeInfo:
 
 
 def get_typeinfo(name: str, value_name_to_typeinfo: dict) -> fbs.TypeInfo:
-    'Lookup a name in a dictionary of value name to TypeInfo.'
+    'Lookup a name in a dictionary mappiong value name to TypeInfo.'
     if name not in value_name_to_typeinfo:
         raise RuntimeError('Missing TypeInfo entry for ' + name)
 
@@ -73,7 +74,7 @@ def get_typeinfo(name: str, value_name_to_typeinfo: dict) -> fbs.TypeInfo:
 
 
 def value_name_to_typestr(name: str, value_name_to_typeinfo: dict):
-    'Lookup TypeInfo for value name and convert to string representing C++ type.'
+    'Lookup TypeInfo for value name and convert to a string representing the C++ type.'
     type = get_typeinfo(name, value_name_to_typeinfo)
     type_str = FbsTypeInfo.typeinfo_to_str(type)
     return type_str
