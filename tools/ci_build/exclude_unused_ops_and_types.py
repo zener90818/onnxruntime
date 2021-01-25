@@ -126,7 +126,7 @@ def exclude_unused_ops_and_types(config_path, enable_type_reduction=False, use_c
 
     # TEMPORARY DUMP
     for domain, opset_ops in required_ops.items():
-        for opset, ops in opset_ops:
+        for opset, ops in opset_ops.items():
             print('{}:[{}]'.format(opset, ','.join(ops)))
     print('type reduction:{}'.format(enable_type_reduction))
 
