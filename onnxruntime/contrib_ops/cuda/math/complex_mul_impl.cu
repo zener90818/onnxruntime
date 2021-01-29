@@ -60,10 +60,11 @@ __global__ void _ElementWiseWithStrideTwo(
         int q, r;
         fdm_output_strides[dim].divmod(offset, q, r);
         if (lhs_need_compute) {
+          ORT_ENFORCE(lhs_padded_strides != nullptr);
           lhs_index += static_cast<int>(lhs_padded_strides[dim]) * q;
         }
-
         if (rhs_need_compute) {
+          ORT_ENFORCE(rhs_padded_strides != nullptr);
           rhs_index += static_cast<int>(rhs_padded_strides[dim]) * q;
         }
         offset = r;
@@ -135,8 +136,21 @@ void ComplexMul_Impl(
         lhs_size,
         rhs_size,
         is_conj);
-  else
+  else if (rhs_padded_strides && rhs_padded_strides->Size())
     _ElementWiseWithStrideTwo<T, false, true, GridDim::maxThreadsPerBlock, GridDim::maxElementsPerThread><<<blocksPerGrid, GridDim::maxThreadsPerBlock, 0>>>(
+        output_rank_or_simple_broadcast,
+        *lhs_padded_strides,
+        lhs_data,
+        *rhs_padded_strides,
+        rhs_data,
+        *fdm_output_strides,
+        output_data,
+        N,
+        lhs_size,
+        rhs_size,
+        is_conj);
+  else
+    _ElementWiseWithStrideTwo<T, false, false, GridDim::maxThreadsPerBlock, GridDim::maxElementsPerThread><<<blocksPerGrid, GridDim::maxThreadsPerBlock, 0>>>(
         output_rank_or_simple_broadcast,
         *lhs_padded_strides,
         lhs_data,
