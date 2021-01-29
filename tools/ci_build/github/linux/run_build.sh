@@ -60,6 +60,8 @@ else
 
     fi
     if [ $BUILD_DEVICE = "gpu" ]; then
+        echo "Contents of /usr/local/cuda/lib64:"
+        ls -l /usr/local/cuda/lib64/*
         if [ $BUILD_OS = "manylinux2010" ]; then
             python3 $SCRIPT_DIR/../../build.py --build_dir /build \
                 --config Release $COMMON_BUILD_ARGS \

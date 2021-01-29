@@ -1125,6 +1125,10 @@ if (onnxruntime_USE_CUDA)
   file(TO_CMAKE_PATH ${onnxruntime_CUDNN_HOME} onnxruntime_CUDNN_HOME)
   set(ONNXRUNTIME_CUDA_LIBRARIES ${CUDA_LIBRARIES})
 
+  message("CUDA_LIBRARIES:${CUDA_LIBRARIES}")
+  message("onnxruntime_CUDNN_HOME:${onnxruntime_CUDNN_HOME}")
+  message("onnxruntime_CUDA_HOME:${onnxruntime_CUDA_HOME}")
+
   if (onnxruntime_ENABLE_NVTX_PROFILE)
     list(APPEND ONNXRUNTIME_CUDA_LIBRARIES cublas cudnn curand cufft nvToolsExt)
   else()
@@ -1132,6 +1136,7 @@ if (onnxruntime_USE_CUDA)
   endif()
 
   if (WIN32)
+    link_directories(${onnxruntime_CUDA_HOME}/lib/x64)
     link_directories(${onnxruntime_CUDNN_HOME}/lib/x64)
 
     # delayload causes crash on exit, so disable for now
@@ -1144,6 +1149,7 @@ if (onnxruntime_USE_CUDA)
     #endforeach(cuda_dll_path)
 
   else()
+    link_directories(${onnxruntime_CUDA_HOME}/lib64)
     link_directories(${onnxruntime_CUDNN_HOME}/lib64)
   endif()
   list(APPEND onnxruntime_EXTERNAL_LIBRARIES ${ONNXRUNTIME_CUDA_LIBRARIES})
