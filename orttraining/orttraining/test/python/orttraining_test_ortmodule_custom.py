@@ -11,7 +11,7 @@ from torch import jit
 class MyReLU(torch.autograd.Function):
     @staticmethod
     def symbolic(g, input):
-        id = ORTModule.register_custom_fn(MyReLU)
+        id = ORTModule.register_custom_fn(__class__)
         output = g.op("com.microsoft::Hole", input, external_fn_i=id)
         return output
     
