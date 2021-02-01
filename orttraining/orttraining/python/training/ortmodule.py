@@ -86,6 +86,14 @@ def _ort_output_to_torch_tensor(ort_output):
     tensor = from_dlpack(ort_output.to_dlpack())
     return tensor.to(torch.bool) if tensor.dtype == torch.uint8 else tensor
 
+class MakeCustomFnModule(torch.nn.Module):
+    def __init__(self, custom_fn):
+        super(MakeCustomFnModule, self).__init__()
+        self.custom_fn = custom_fn
+        
+    def forward(self, input):
+        return self.custom_fn.apply(input)
+    
 class ORTModule(torch.nn.Module):
 
     def __init__(self, module):
@@ -116,7 +124,7 @@ class ORTModule(torch.nn.Module):
         self._loglevel = getattr(logging, 'WARNING')
 
         # Debug flags
-        self._save_onnx = False
+        self._save_onnx = True
         self._save_onnx_prefix = ''
 
     def cpu(self: T) -> T:
@@ -176,6 +184,21 @@ class ORTModule(torch.nn.Module):
         if self._is_training and self._device.type == 'cuda':
             torch.cuda.empty_cache()
 
+    # Mapping from IDs used in com.microsoft::Hole objects to
+    # definitions for nn.Modules containing the custom autograd
+    # functions required
+    next_id = 0
+    max_id = 100 
+    custom_fns = {}
+    @classmethod
+    def register_custom_fn(cls, fn):
+        assert issubclass(fn, torch.autograd.Function)
+        id = cls.next_id
+        cls.next_id = cls.next_id + 1
+        cls.custom_fns[id] = MakeCustomFnModule(fn)
+        print("id:", id, " -> ", fn)
+        return id
+
     def forward(self, *inputs, **kwargs):
         '''Forward pass starts here and continues at `_ORTModuleFunction.forward`
 
@@ -190,6 +213,8 @@ class ORTModule(torch.nn.Module):
             self._require_export = False
             self._onnx_training = ORTModule._get_forward_graph(self._original_module, *inputs, **kwargs)
 
+            if self._save_onnx:
+                onnx.save(self._onnx_training, self._save_onnx_prefix + '_forward.onnx')
             # TODO: PyTorch exporter bug: changes the initializer order
             initializer_names = [p[0] for p in self._original_module.named_parameters()]
 
@@ -256,9 +281,42 @@ class ORTModule(torch.nn.Module):
                 _create_iobinding(self._gradient_io_binding, inputs, self._onnx_gradient, self._device)
 
                 # Run and return user outputs.
-                user_outputs = tuple(_ort_output_to_torch_tensor(forward_output) \
-                    for forward_output in self._gradient_session.run_forward(self._gradient_io_binding, self._run_options))
-                return user_outputs[0] if len(user_outputs) == 1 else user_outputs
+                (v, vs) = self._gradient_session.start_forward(self._gradient_io_binding, self._run_options)
+                while True:
+                    user_outputs = tuple(_ort_output_to_torch_tensor(forward_output) for forward_output in vs)
+                    adjusted_user_outputs = user_outputs[0] if len(user_outputs) == 1 else user_outputs
+
+                    # Token values should match event_pool.h
+                    if v == 200:
+                        # Yield at end of forward pass
+                        print("End of forward pass")
+                        return adjusted_user_outputs
+                    
+                    elif v>=100 and v<200:
+                        # Run the forward pass of a custom autograd
+                        # function.  All this is assuming a single
+                        # input and single output.
+                        assert len(user_outputs)==1
+                        id = v-100;
+                        print("Hole reached in forward pass id:", id)
+                        custom_module = ORTModule.custom_fns[id]
+                        custom_module.input = user_outputs[0].clone()
+                        custom_module.input.requires_grad = True
+                        with torch.enable_grad():
+                            custom_module.output = custom_module.forward(custom_module.input)
+                            assert isinstance(custom_module.output, torch.Tensor)
+                        next_outputs_ortvalue = []
+                        for o in [custom_module.output]:
+                            next_outputs_ortvalue.append(onnxruntime.OrtValue.ortvalue_from_data_ptr(list(o.size()),
+                                                                                                     _utils.dtype_torch_to_numpy(o.dtype),
+                                                                                                     o.device.type,
+                                                                                                     _get_device_index(o.device),
+                                                                                                     o.data_ptr()))
+                        (v, vs) = self._gradient_session.resume_forward(next_outputs_ortvalue)
+                    else:
+                        # Unexpected token (not end of forward pass, or hole)
+                        raise Exception("Unexpected token " + str(v));
+                    
 
             @staticmethod
             def backward(ctx, *grad_output):
@@ -279,14 +337,42 @@ class ORTModule(torch.nn.Module):
                         grad_output.dtype), grad_output.device.type, _get_device_index(grad_output.device), grad_output.data_ptr()))
 
                 # Run and get results
-                self._gradient_session.run_backward(backward_grad_output_ortvalue)
-                backward_outputs = self._gradient_io_binding.get_outputs()
+                (v, vs) = self._gradient_session.start_or_resume_backward(backward_grad_output_ortvalue)
+                while True:
+                    # Token values should match event_pool.h
+                    if v == 400:
+                        # End of backward pass, return input and initializer gradients
+                        print("End of backward pass")
+                        backward_outputs = self._gradient_io_binding.get_outputs()
+                        results = [torch.tensor([1])] * len(self._onnx_graphs_info.user_input_names)
+                        results += [_ort_output_to_torch_tensor(backward_output) \
+                                    for backward_output in backward_outputs[:len(self._onnx_graphs_info.initializer_grad_names_to_train)]]
+                        return tuple(results)
 
-                # Return input and initializer gradients
-                results = [torch.tensor([1])] * len(self._onnx_graphs_info.user_input_names)
-                results += [_ort_output_to_torch_tensor(backward_output) \
-                    for backward_output in backward_outputs[:len(self._onnx_graphs_info.initializer_grad_names_to_train)]]
-                return tuple(results)
+                    elif v>=300 and v<400:
+                        # Hole in backward pass
+                        user_outputs = tuple(_ort_output_to_torch_tensor(forward_output) for forward_output in vs)
+                        assert len(user_outputs)==1
+
+                        id = v-300;
+                        print("Hole reached in backward pass id:", id)
+                        custom_module = ORTModule.custom_fns[id]
+                        custom_module.output.backward(*user_outputs)
+                        next_outputs_ortvalue = []
+                        for o in [custom_module.input.grad]:
+                            next_outputs_ortvalue.append(onnxruntime.OrtValue.ortvalue_from_data_ptr(list(o.size()),
+                                                                                                     _utils.dtype_torch_to_numpy(o.dtype),
+                                                                                                     o.device.type,
+                                                                                                     _get_device_index(o.device),
+                                                                                                     o.data_ptr()))
+
+                        (v,vs) = self._gradient_session.start_or_resume_backward(next_outputs_ortvalue)
+
+                    else:
+                        # Unexpected token (not end of backward pass, or hole)
+                        raise Exception("Unexpected token " + str(v));
+                            
+
 
         return _ORTModuleFunction.apply(*self._convert_gradient_graph_input_to_list(self._original_module, *inputs, **kwargs))
 
@@ -347,7 +433,8 @@ class ORTModule(torch.nn.Module):
                           opset_version=ONNX_OPSET_VERSION,
                           do_constant_folding=False,
                           training=torch.onnx.TrainingMode.TRAINING,
-                          dynamic_axes=dynamic_axes)
+                          dynamic_axes=dynamic_axes,
+                          enable_onnx_checker=False)
 
         return onnx.load_model_from_string(f.getvalue())
 

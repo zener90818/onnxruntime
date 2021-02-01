@@ -164,20 +164,32 @@ class Session:
         """
         self._sess.run_with_iobinding(iobinding._iobinding, run_options)
 
-    def run_forward(self, iobinding, run_options):
+    def start_forward(self, iobinding, run_options):
         """
-         Compute the forward part of the graph end with Yield Op.
+         Compute the forward part of the graph end with Yield Op at the end of the forward
+         pass, or a Hole Op for a call to a custom autograd function.
          :param iobinding: the iobinding object that has graph inputs/outputs bind.
          :param run_options: See :class:`onnxruntime.RunOptions`.
         """
-        return [OrtValue(ortvalue) for ortvalue in self._sess.run_forward(iobinding._iobinding, run_options)]
+        (v, vs) = self._sess.start_forward(iobinding._iobinding, run_options)
+        return (v, [OrtValue(ortvalue) for ortvalue in vs])
 
-    def run_backward(self, backward_output_grads):
+    def resume_forward(self, output_from_hole):
         """
-         Compute the backward part of the graph starting from Yield Op.
-         :param backward_output_grads: Output gradients for backward.
+         Continue the forward part of the graph after a Hole Op.
+         :param output_from_hole: Output from the hole..
         """
-        self._sess.run_backward([ortvalue._ortvalue for ortvalue in backward_output_grads])
+        (v, vs) = self._sess.resume_forward([ortvalue._ortvalue for ortvalue in output_from_hole])
+        return (v, [OrtValue(ortvalue) for ortvalue in vs])
+
+    def start_or_resume_backward(self, backward_grads):
+        """
+         Compute the backward part of the graph starting from Yield Op, or after executing
+         a Hole Op on the backward pass
+         :param backward_grads: Gradients fed into the part of graph executed next.
+        """
+        (v, vs) = self._sess.start_or_resume_backward([ortvalue._ortvalue for ortvalue in backward_grads])
+        return (v, [OrtValue(ortvalue) for ortvalue in vs])
 
 
 class InferenceSession(Session):

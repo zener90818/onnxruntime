@@ -15,5 +15,11 @@ class Yield final : public CudaKernel {
   Status ComputeInternal(OpKernelContext* context) const override;
 };
 
+class Hole final : public CudaKernel {
+ public:
+  Hole(const OpKernelInfo& info) : CudaKernel(info) {}
+  Status ComputeInternal(OpKernelContext* context) const override;
+};
+
 }  // namespace cuda
 }  // namespace onnxruntime

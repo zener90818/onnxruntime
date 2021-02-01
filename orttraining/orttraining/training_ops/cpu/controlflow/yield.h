@@ -14,5 +14,11 @@ class Yield final : public OpKernel {
   Status Compute(OpKernelContext* context) const override;
 };
 
+class Hole final : public OpKernel {
+ public:
+  Hole(const OpKernelInfo& info) : OpKernel(info) {}
+  Status Compute(OpKernelContext* context) const override;
+};
+
 }  // namespace contrib
 }  // namespace onnxruntime

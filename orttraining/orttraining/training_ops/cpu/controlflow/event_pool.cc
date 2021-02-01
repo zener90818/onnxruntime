@@ -10,9 +10,10 @@ void OrtEventPool::CheckRange(const int64_t id) const {
   ORT_ENFORCE(id >= 0 && id < MaxNumItems, "Got id ", id, ". It should be in a range from 0 to ", MaxNumItems, ".");
 }
 
-void OrtEventPool::SignalEvent(int64_t id) {
+void OrtEventPool::SignalEvent(int64_t id, int64_t token) {
   CheckRange(id);
   std::unique_lock<std::mutex> lock(pool_[id].mutex);
+  pool_[id].token = token;
   pool_[id].signaled.store(true);
   lock.unlock();
   pool_[id].cv.notify_all();
@@ -23,17 +24,23 @@ bool OrtEventPool::QueryEvent(int64_t id) const {
   return pool_[id].signaled.load();
 }
 
-void OrtEventPool::ResetAndWaitEvent(int64_t id) {
+int64_t OrtEventPool::ResetAndWaitEvent(int64_t id) {
+  int64_t token;
   CheckRange(id);
   std::unique_lock<std::mutex> lock(pool_[id].mutex);
   pool_[id].signaled.store(false);
   pool_[id].cv.wait(lock, [this, id] { return pool_[id].signaled.load(); });
+  token = pool_[id].token;
+  return token;
 };
 
-void OrtEventPool::WaitEvent(int64_t id) const {
+int64_t OrtEventPool::WaitEvent(int64_t id) const {
+  int64_t token;
   CheckRange(id);
   std::unique_lock<std::mutex> lock(pool_[id].mutex);
   pool_[id].cv.wait(lock, [this, id] { return pool_[id].signaled.load(); });
+  token = pool_[id].token;
+  return token;
 };
 
 void OrtEventPool::ResetAllEvents() {

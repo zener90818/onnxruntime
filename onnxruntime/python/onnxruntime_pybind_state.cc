@@ -4,6 +4,7 @@
 #include "python/onnxruntime_pybind_exceptions.h"
 #include "python/onnxruntime_pybind_mlvalue.h"
 #include "python/onnxruntime_pybind_state_common.h"
+#include <iostream>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #define PY_ARRAY_UNIQUE_SYMBOL onnxruntime_python_ARRAY_API
@@ -1851,19 +1852,37 @@ including arg name, arg type (contains both type and shape).)pbdoc")
         if (!status.IsOK())
           throw std::runtime_error("Error in execution: " + status.ErrorMessage());
       })
-      .def("run_forward", [](PyInferenceSession* sess, SessionIOBinding& io_binding, RunOptions& run_options) -> std::vector<OrtValue> {
+    .def("start_forward", [](PyInferenceSession* sess, SessionIOBinding& io_binding, RunOptions& run_options) -> std::tuple<int64_t,std::vector<OrtValue>> {
         std::vector<OrtValue> user_outputs;
-        Status status = sess->GetSessionHandle()->RunInBackgroundAndWaitForYield(run_options, *io_binding.Get(), user_outputs);
+	int64_t token_out;
+        Status status = sess->GetSessionHandle()->StartForwardInBackground(run_options, *io_binding.Get(), user_outputs, token_out);
         if (!status.IsOK()) {
           throw std::runtime_error("Error in execution: " + status.ErrorMessage());
         }
 
-        return user_outputs;
+        return std::tuple<int64_t,std::vector<OrtValue>>(token_out, user_outputs);
       })
-      .def("run_backward", [](PyInferenceSession* sess, const std::vector<OrtValue>& backward_output_grads) -> void {
-        Status status = sess->GetSessionHandle()->ContinueRunInBackground(backward_output_grads);
+    .def("resume_forward", [](PyInferenceSession* sess, const std::vector<OrtValue>& backward_output_grads) -> std::pair<int64_t,std::vector<OrtValue>> {
+        std::vector<OrtValue> user_outputs;
+	int64_t token_out;
+        Status status = sess->GetSessionHandle()->ResumeForwardInBackground(backward_output_grads,
+                                                                            user_outputs,
+                                                                            token_out);
+        if (!status.IsOK()) {
+          throw std::runtime_error("Error in execution: " + status.ErrorMessage());
+        }
+
+        return std::pair<int64_t,std::vector<OrtValue>>(token_out, user_outputs);
+      })
+    .def("start_or_resume_backward", [](PyInferenceSession* sess, const std::vector<OrtValue>& backward_output_grads) -> std::pair<int64_t,std::vector<OrtValue>> {
+	std::vector<OrtValue> user_outputs;
+	int64_t token_out;
+        Status status = sess->GetSessionHandle()->StartOrResumeBackwardInBackground(backward_output_grads,
+                                                                                    user_outputs,
+                                                                                    token_out);
         if (!status.IsOK())
           throw std::runtime_error("Error in execution: " + status.ErrorMessage());
+	return std::pair<int64_t,std::vector<OrtValue>>(token_out, user_outputs);
       });
 
   py::enum_<onnxruntime::ArenaExtendStrategy>(m, "ArenaExtendStrategy", py::arithmetic())

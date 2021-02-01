@@ -397,6 +397,7 @@ void addObjectMethodsForTraining(py::module& m) {
       .def("get_split_graphs_info", [](ModuleGradientGraphBuilder* module_gradient_graph_builder) {
         return module_gradient_graph_builder->GetSplitGraphsInfo();
       });
+
 }
 }  // namespace python
 }  // namespace onnxruntime

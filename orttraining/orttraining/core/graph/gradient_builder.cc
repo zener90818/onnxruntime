@@ -1506,5 +1506,19 @@ IMPLEMENT_GRADIENT_BUILDER(GetClipGradient) {
   return output;
 }
 
+IMPLEMENT_GRADIENT_BUILDER(GetHoleGradient) {
+  auto attributes = SrcNodeAttributes();
+  auto external_fn = attributes.at("external_fn").i();
+  auto attr_is_backward = MakeAttribute("is_backward", static_cast<int64_t>(1));
+  auto attr_external_fn = MakeAttribute("external_fn", external_fn);
+  std::vector<AttributeProto> attrs{attr_is_backward, attr_external_fn};
+  return std::vector<NodeDef>{
+      NodeDef(OpDef{"Hole", kMSDomain, 1},
+              {GO(0)},
+              {GI(0)},
+              attrs)};
+}
+
+
 }  // namespace training
 }  // namespace onnxruntime

@@ -62,6 +62,9 @@ using namespace ONNX_NAMESPACE;
 using namespace onnxruntime::experimental;
 using namespace onnxruntime::common;
 
+using onnxruntime::contrib::OrtEventPool;
+using onnxruntime::contrib::OrtMessageQueue;
+
 namespace onnxruntime {
 namespace {
 template <typename T>
@@ -1692,26 +1695,57 @@ common::Status InferenceSession::Run(IOBinding& io_binding) {
   return Run(run_options, io_binding);
 }
 
-common::Status InferenceSession::RunInBackgroundAndWaitForYield(const RunOptions& run_options, IOBinding& io_binding,
-                                                                std::vector<OrtValue>& user_outputs) {
+// First part of forward pass
+common::Status InferenceSession::StartForwardInBackground(const RunOptions& run_options, IOBinding& io_binding,
+                                                          std::vector<OrtValue>& user_outputs,
+                                                          int64_t& token_out) {
   bg_thread_ = std::thread([&]() {
-    common::Status s = Run(run_options, io_binding.GetInputNames(), io_binding.GetInputs(), io_binding.GetOutputNames(),
-                           &io_binding.GetOutputs(), &io_binding.GetOutputsDeviceInfo());
-
-    // Do I need to signal main thread for the completion???
-    const int64_t main_thread_event_id = 0;
-    onnxruntime::contrib::OrtEventPool::GetInstance().SignalEvent(main_thread_event_id);
+      common::Status s = Run(run_options,
+                             io_binding.GetInputNames(),
+                             io_binding.GetInputs(),
+                             io_binding.GetOutputNames(),
+                             &io_binding.GetOutputs(),
+                             &io_binding.GetOutputsDeviceInfo());
+      
+      // Do I need to signal main thread for the completion???
+      const int64_t main_thread_event_id = 0;
+      OrtEventPool::GetInstance().SignalEvent(main_thread_event_id,
+                                              OrtEventPool::TOKEN_END_BACKWARD);
   });
 
-  // wait for event from yeild op
+  // wait for event from yield or hole
   const int64_t main_thread_event_id = 0;
-  onnxruntime::contrib::OrtEventPool::GetInstance().ResetAndWaitEvent(main_thread_event_id);
+  token_out = OrtEventPool::GetInstance().ResetAndWaitEvent(main_thread_event_id);
 
+  // Take the items produced, and push them to the queue shared with PyTorch
   onnxruntime::contrib::OrtMessageQueue::GetInstance().PopAll(user_outputs);
   return Status::OK();
 }
 
-common::Status InferenceSession::ContinueRunInBackground(const std::vector<OrtValue>& backward_output_grads) {
+// Subsequent parts of forward pass
+common::Status InferenceSession::ResumeForwardInBackground(const std::vector<OrtValue>& backward_output_grads,
+                                                           std::vector<OrtValue>& user_outputs,
+                                                           int64_t& token_out) {
+  for (const auto& ort_value : backward_output_grads) {
+    onnxruntime::contrib::OrtMessageQueue::GetInstance().Push(ort_value);
+  }
+
+  // resume background thread
+  const int64_t background_thread_event_id = 1;
+  OrtEventPool::GetInstance().SignalEvent(background_thread_event_id);
+
+  // Do I need to wait for event from end of background thread??
+  const int64_t main_thread_event_id = 0;
+  token_out = OrtEventPool::GetInstance().ResetAndWaitEvent(main_thread_event_id);
+
+  OrtMessageQueue::GetInstance().PopAll(user_outputs);
+  return Status::OK();
+}
+
+// Backward pass
+common::Status InferenceSession::StartOrResumeBackwardInBackground(const std::vector<OrtValue>& backward_output_grads,
+                                                                   std::vector<OrtValue>& user_outputs,
+                                                                   int64_t& token_out) {
   for (const auto& ort_value : backward_output_grads) {
     onnxruntime::contrib::OrtMessageQueue::GetInstance().Push(ort_value);
   }
@@ -1722,13 +1756,14 @@ common::Status InferenceSession::ContinueRunInBackground(const std::vector<OrtVa
 
   // Do I need to wait for event from end of background thread??
   const int64_t main_thread_event_id = 0;
-  onnxruntime::contrib::OrtEventPool::GetInstance().ResetAndWaitEvent(main_thread_event_id);
+  token_out = onnxruntime::contrib::OrtEventPool::GetInstance().ResetAndWaitEvent(main_thread_event_id);
 
-  // wait still bg_thread is completed
-  if (bg_thread_.joinable()) {
+  // wait still bg_thread is completed if we completed the backward pass
+  if (token_out == onnxruntime::contrib::OrtEventPool::TOKEN_END_BACKWARD && bg_thread_.joinable()) {
     bg_thread_.join();
   }
 
+  onnxruntime::contrib::OrtMessageQueue::GetInstance().PopAll(user_outputs);
   return Status::OK();
 }
 

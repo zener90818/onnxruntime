@@ -295,11 +295,18 @@ class InferenceSession {
   common::Status Run(IOBinding& io_binding) ORT_MUST_USE_RESULT;
 
   // For ORTModule.forward()
-  virtual common::Status RunInBackgroundAndWaitForYield(const RunOptions& run_options, IOBinding& io_binding,
-                                                        std::vector<OrtValue>& user_outputs) ORT_MUST_USE_RESULT;
+  virtual common::Status StartForwardInBackground(const RunOptions& run_options, IOBinding& io_binding,
+                                                  std::vector<OrtValue>& user_outputs,
+                                                  int64_t& token_out) ORT_MUST_USE_RESULT;
 
+  virtual common::Status ResumeForwardInBackground(const std::vector<OrtValue>& backward_output_grads,
+                                                   std::vector<OrtValue>& user_outputs,
+                                                   int64_t& token_out) ORT_MUST_USE_RESULT;
+  
   // For ORTModule.backward()
-  common::Status ContinueRunInBackground(const std::vector<OrtValue>& backward_output_grads) ORT_MUST_USE_RESULT;
+  common::Status StartOrResumeBackwardInBackground(const std::vector<OrtValue>& backward_output_grads,
+                                                   std::vector<OrtValue>& user_outputs,
+                                                   int64_t& token_out) ORT_MUST_USE_RESULT;
 
   /**
     * @return pair.first = OK; FAIL otherwise. pair.second is non-NULL when pair.first = OK.
