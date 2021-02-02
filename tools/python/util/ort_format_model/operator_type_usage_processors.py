@@ -132,7 +132,7 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
         if 0 not in self._input_types.keys():
             # currently all standard typed registrations are for input 0.
             # custom registrations can be handled by operator specific processors (e.g. OneHotProcessor below).
-            raise RuntimeError('Expected typed registration to use type from input 0.')
+            raise RuntimeError('Expected typed registration to use type from input 0. Node:{}'.format(self.name))
 
         return type_in_registration in self._input_types[0]
 
@@ -250,7 +250,7 @@ def _create_operator_type_usage_processors():
     # - Implementation is not type specific:
     #    If, Loop, Reshape, Scan, Shape, Squeeze, Unsqueeze
     # - Only one type supported in the ORT implementation:
-    #    FusedConv, FusedGemm, FusedMatMul, TransposeMatMul
+    #    FusedConv, FusedGemm, FusedMatMul, InstanceNormalization, TransposeMatMul
     # - Implementation does not have any significant type specific code:
     #    Concat, Flatten, Not, QLinearConv, Reshape, Shape, Squeeze, Unsqueeze
     default_processor_onnx_ops = ['Add', 'AveragePool', 'BatchNormalization', 'Clip', 'Conv',
