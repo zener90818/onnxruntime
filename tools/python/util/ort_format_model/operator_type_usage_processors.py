@@ -109,13 +109,18 @@ class DefaultTypeUsageProcessor(TypeUsageProcessor):
     def process_node(self, node: fbs.Node, value_name_to_typeinfo: dict):
         for i in self._input_types.keys():
             if i >= node.InputsLength():
-                raise RuntimeError('Node has {} inputs. Tracker for {} incorrectly configured as it requires {}.'
-                                   .format(node.InputsLength(), self.name, i))
-
-            type_str = value_name_to_typestr(node.Inputs(i), value_name_to_typeinfo)
-            self._input_types[i].add(type_str)
+                # Some operators have fewer inputs in earlier versions where data that was as an attribute
+                # become an input in later versions to allow it to be dynamically provided. Allow for that.
+                # e.g. Slice-1 had attributes for the indices, and Slice-10 moved those to be inputs
+                # raise RuntimeError('Node has {} outputs. Tracker for {} incorrectly configured as it requires {}.'
+                #                    .format(node.OutputsLength(), self.name, o))
+                pass
+            else:
+                type_str = value_name_to_typestr(node.Inputs(i), value_name_to_typeinfo)
+                self._input_types[i].add(type_str)
 
         for o in self._output_types.keys():
+            # Don't know of any ops where the number of outputs changed across versions, so require a valid length
             if o >= node.OutputsLength():
                 raise RuntimeError('Node has {} outputs. Tracker for {} incorrectly configured as it requires {}.'
                                    .format(node.OutputsLength(), self.name, o))
@@ -252,7 +257,7 @@ def _create_operator_type_usage_processors():
                                   'DequantizeLinear', 'Div', 'Equal', 'Exp', 'Expand',
                                   'Gemm', 'Greater', 'Less', 'MatMul', 'Max', 'Min', 'Mul',
                                   'NonMaxSuppression', 'NonZero', 'Pad', 'Range', 'Relu', 'Resize',
-                                  'Sigmoid', 'Slice', 'Softmax', 'Split', 'Sub', 'Tile', 'TopK', 'Transpose']
+                                  'Sigmoid', 'Softmax', 'Split', 'Sub', 'Tile', 'TopK', 'Transpose']
 
     internal_ops = ['QLinearAdd', 'QLinearMul']
 
@@ -279,6 +284,9 @@ def _create_operator_type_usage_processors():
     # Gather and GatherElements have switching on both the data type (input0) and indices type (input1)
     add(DefaultTypeUsageProcessor('ai.onnx', 'Gather', inputs=[0, 1]))
     add(DefaultTypeUsageProcessor('ai.onnx', 'GatherElements', inputs=[0, 1]))
+
+    # Slice has separate data types for the input data and indices
+    add(DefaultTypeUsageProcessor('ai.onnx', 'Slice', inputs=[0, 1]))
 
     # Pow dispatches on base and exponential types
     add(DefaultTypeUsageProcessor('ai.onnx', 'Pow', inputs=[0, 1]))
