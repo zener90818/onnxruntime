@@ -8,12 +8,19 @@ import onnxruntime
 from onnxruntime.training import ORTModule
 from torch import jit
 
+def register_ort_module(cls, g, *input):
+    id = ORTModule.register_custom_fn(cls)
+    output = g.op("com.microsoft::Hole",
+                  *input,
+                  external_fn_i=id)
+    return output
+
 class MyReLU(torch.autograd.Function):
-    @staticmethod
-    def symbolic(g, input):
-        id = ORTModule.register_custom_fn(__class__)
-        output = g.op("com.microsoft::Hole", input, external_fn_i=id)
-        return output
+#    @staticmethod
+#    def symbolic(g, *input):
+#        id = ORTModule.register_custom_fn(__class__)
+#        output = g.op("com.microsoft::Hole", *input, external_fn_i=id)
+#        return output
     
     @staticmethod
     def forward(ctx, input):
@@ -39,9 +46,9 @@ class NeuralNet(torch.nn.Module):
     def forward(self, input1):
         out = self.fc1(input1)
         out = MyReLU.apply(out);
+        out = MyReLU.apply(out);
         out = self.fc2(out)
         return out
-
 
 def train(args, model, device, optimizer, loss_fn, train_loader, epoch):
     print('\n======== Epoch {:} / {:} with batch size {:} ========'.format(epoch+1, args.epochs, args.batch_size))
@@ -195,6 +202,8 @@ def main():
     
     if not args.pytorch_only:
         print('Training MNIST on ORTModule....')
+
+        MyReLU.symbolic = classmethod(register_ort_module)
         model = ORTModule(model)
 
         # TODO: change it to False to stop saving ONNX models
