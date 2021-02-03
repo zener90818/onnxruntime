@@ -259,8 +259,8 @@ def _create_operator_type_usage_processors():
     #   - some known large kernels
     #
     # Ops we are ignoring currently so as not to produce meaningless/unused output:
-    # - Implementation is not type specific:
-    #    If, Loop, Reshape, Scan, Shape, Squeeze, Unsqueeze
+    # - Implementation is type agnostic:
+    #    DynamicQuantizeMatMul, If, Loop, Reshape, Scan, Shape, Squeeze, Unsqueeze
     # - Only one type supported in the ORT implementation:
     #    FusedConv, FusedGemm, FusedMatMul, InstanceNormalization, TransposeMatMul
     # - Implementation does not have any significant type specific code:
@@ -291,14 +291,15 @@ def _create_operator_type_usage_processors():
     #
     # Operators that require custom handling
     #
-    add(DefaultTypeUsageProcessor('ai.onnx', 'Cast', inputs=[0], outputs=[0]))  # track input0 and output0
 
-    # Operators that switch on the type of input 0 and 1
+    # Cast switches on types of input 0 and output 0
+    add(DefaultTypeUsageProcessor('ai.onnx', 'Cast', inputs=[0], outputs=[0]))
+
+    # Operators that switch on the type of both input 0 and 1
     add(DefaultTypeUsageProcessor('ai.onnx', 'Gather', inputs=[0, 1]))
     add(DefaultTypeUsageProcessor('ai.onnx', 'GatherElements', inputs=[0, 1]))
     add(DefaultTypeUsageProcessor('ai.onnx', 'Pow', inputs=[0, 1]))
     add(DefaultTypeUsageProcessor('ai.onnx', 'Slice', inputs=[0, 1]))
-
 
     # Operators that switch on output type
     add(DefaultTypeUsageProcessor('ai.onnx', 'ConstantOfShape', inputs=[], outputs=[0]))

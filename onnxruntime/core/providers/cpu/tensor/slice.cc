@@ -244,19 +244,19 @@ Status SliceBase::PrepareForCompute(const std::vector<int64_t>& raw_starts,
 }
 
 // Slice V10 & DynamicSlice
-void SliceBase::FillVectorsFromInput(const Tensor& start_tensor,
-                                     const Tensor& ends_tensor,
-                                     const Tensor* axes_tensor,
-                                     const Tensor* steps_tensor,
-                                     std::vector<int64_t>& input_starts,
-                                     std::vector<int64_t>& input_ends,
-                                     std::vector<int64_t>& input_axes,
-                                     std::vector<int64_t>& input_steps) {
-  ORT_ENFORCE(start_tensor.Shape().NumDimensions() == 1, "Starts must be a 1-D array");
-  ORT_ENFORCE(ends_tensor.Shape().NumDimensions() == 1, "Ends must be a 1-D array");
-  ORT_ENFORCE(start_tensor.Shape() == ends_tensor.Shape(), "Starts and ends shape mismatch");
-  ORT_ENFORCE(nullptr == axes_tensor || start_tensor.Shape() == axes_tensor->Shape(), "Starts and axes shape mismatch");
-  ORT_ENFORCE(nullptr == steps_tensor || start_tensor.Shape() == steps_tensor->Shape(), "Starts and steps shape mismatch");
+Status SliceBase::FillVectorsFromInput(const Tensor& start_tensor,
+                                       const Tensor& ends_tensor,
+                                       const Tensor* axes_tensor,
+                                       const Tensor* steps_tensor,
+                                       std::vector<int64_t>& input_starts,
+                                       std::vector<int64_t>& input_ends,
+                                       std::vector<int64_t>& input_axes,
+                                       std::vector<int64_t>& input_steps) {
+  ORT_RETURN_IF_NOT(start_tensor.Shape().NumDimensions() == 1, "Starts must be a 1-D array");
+  ORT_RETURN_IF_NOT(ends_tensor.Shape().NumDimensions() == 1, "Ends must be a 1-D array");
+  ORT_RETURN_IF_NOT(start_tensor.Shape() == ends_tensor.Shape(), "Starts and ends shape mismatch");
+  ORT_RETURN_IF_NOT(nullptr == axes_tensor || start_tensor.Shape() == axes_tensor->Shape(), "Starts and axes shape mismatch");
+  ORT_RETURN_IF_NOT(nullptr == steps_tensor || start_tensor.Shape() == steps_tensor->Shape(), "Starts and steps shape mismatch");
 
   const auto& size = start_tensor.Shape().Size();
   input_starts.resize(size);
@@ -292,8 +292,12 @@ void SliceBase::FillVectorsFromInput(const Tensor& start_tensor,
   }
 
   else {
-    ORT_THROW("Data type for starts and ends inputs' is not supported in this build. Got ", start_tensor.DataType());
+    return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL,
+                           "Data type for starts and ends inputs' is not supported in this build. Got ",
+                           start_tensor.DataType());
   }
+
+  return Status::OK();
 }
 
 template <typename T>
