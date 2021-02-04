@@ -133,6 +133,32 @@ namespace concurrency {
 class ThreadPoolParallelSection;
 class ThreadPoolLoop;
 
+// Basic spinlock definition.  Intended only for testing while investigating
+// whether poor perf on one Windows workload was due to the SRW lock we
+// use for an OrtMutex.
+
+class OrtSpinlock {
+  public:
+  void lock() {
+    while (true) {
+      int saw_locked = locked_;
+      if (!saw_locked) {
+        if (locked_.compare_exchange_strong(saw_locked, 1)) {
+          return;
+        }
+      }
+    }
+  }
+
+  void unlock() {
+    locked_ = 0;
+  }
+
+  private:
+  std::atomic<unsigned int> locked_{0};
+  ORT_DISALLOW_COPY_AND_ASSIGNMENT(OrtSpinlock);
+}
+
 // Align to avoid false sharing with prior fields.  If required,
 // alignment or padding must be added subsequently to avoid false
 // sharing with later fields.  Note that:
@@ -322,7 +348,7 @@ class RunQueue {
   // PushBack adds w at the end of the queue.
   // If queue is full returns w, otherwise returns default-constructed Work.
   Work PushBack(Work w) {
-    std::unique_lock<OrtMutex> lock(mutex_);
+    std::unique_lock<OrtSpinlock> lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem& e = array_[(back - 1) & kMask];
     ElemState s = e.state.load(std::memory_order_relaxed);
@@ -344,7 +370,7 @@ class RunQueue {
   //
   // If the queue is full, returns w, otherwise returns default-constructed work.
   Work PushBackWithTag(Work w, Tag tag, unsigned &w_idx) {
-    std::unique_lock<OrtMutex> lock(mutex_);
+    std::unique_lock<OrtSpinlock> lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     w_idx = (back-1) & kMask;
     Elem& e = array_[w_idx];
@@ -364,7 +390,7 @@ class RunQueue {
   Work PopBack() {
     if (Empty())
       return Work();
-    std::unique_lock<OrtMutex> lock(mutex_);
+    std::unique_lock<OrtSpinlock> lock(mutex_);
     unsigned back;
     Elem *e;
     ElemState s;
@@ -406,7 +432,7 @@ class RunQueue {
 
   bool RevokeWithTag(Tag tag, unsigned w_idx) {
     bool revoked = false;
-    std::unique_lock<OrtMutex> lock(mutex_);
+    std::unique_lock<OrtSpinlock> lock(mutex_);
     Elem& e = array_[w_idx];
     ElemState s = e.state.load(std::memory_order_relaxed);
 
@@ -485,7 +511,7 @@ class RunQueue {
     Work w;
   };
 
-  OrtMutex mutex_;
+  OrtSpinlock mutex_;
 
   // Low log(kSize) + 1 bits in front_ and back_ contain rolling index of
   // front/back, respectively. The remaining bits contain modification counters
