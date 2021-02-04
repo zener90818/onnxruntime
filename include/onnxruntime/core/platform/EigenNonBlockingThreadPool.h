@@ -139,6 +139,9 @@ class ThreadPoolLoop;
 
 class OrtSpinlock {
   public:
+  OrtSpinlock() {
+  }
+  
   void lock() {
     while (true) {
       unsigned int saw_locked = locked_;
