@@ -141,9 +141,9 @@ class OrtSpinlock {
   public:
   void lock() {
     while (true) {
-      int saw_locked = locked_;
+      unsigned int saw_locked = locked_;
       if (!saw_locked) {
-        if (locked_.compare_exchange_strong(saw_locked, 1)) {
+        if (locked_.compare_exchange_strong(saw_locked, 1u)) {
           return;
         }
       }
@@ -157,7 +157,7 @@ class OrtSpinlock {
   private:
   std::atomic<unsigned int> locked_{0};
   ORT_DISALLOW_COPY_AND_ASSIGNMENT(OrtSpinlock);
-}
+};
 
 // Align to avoid false sharing with prior fields.  If required,
 // alignment or padding must be added subsequently to avoid false
