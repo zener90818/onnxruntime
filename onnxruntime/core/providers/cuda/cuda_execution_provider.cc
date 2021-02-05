@@ -64,7 +64,7 @@ AllocatorPtr CUDAExecutionProvider::CreateCudaAllocator(OrtDevice::DeviceId devi
   if (external_allocator_info.UseExternalAllocator()) {
     AllocatorCreationInfo default_memory_info(
         [external_allocator_info](OrtDevice::DeviceId id) {
-          return onnxruntime::make_unique<CUDAExternalAllocator>(id, CUDA, external_allocator_info.alloc, external_allocator_info.free);
+          return onnxruntime::make_unique<CUDAExternalAllocator>(id, GPU, external_allocator_info.alloc, external_allocator_info.free);
         },
         device_id,
         false);
@@ -74,7 +74,7 @@ AllocatorPtr CUDAExecutionProvider::CreateCudaAllocator(OrtDevice::DeviceId devi
   } else {
     AllocatorCreationInfo default_memory_info(
         [](OrtDevice::DeviceId id) {
-          return onnxruntime::make_unique<CUDAAllocator>(id, CUDA);
+          return onnxruntime::make_unique<CUDAAllocator>(id, GPU);
         },
         device_id,
         true,
