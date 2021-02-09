@@ -198,6 +198,7 @@ add_winml_test(
 target_delayload(winml_test_api dxgi.dll d3d12.dll api-ms-win-core-file-l1-2-2.dll api-ms-win-core-synch-l1-2-1.dll)
 if (onnxruntime_USE_DML)
   target_delayload(winml_test_api DirectML.778373e44bbee550086539b4ba4c31a8771c335d.dll)
+  target_link_options(winml_test_api PRIVATE "/IGNORE:4199") # hack
 endif()
 if (EXISTS ${dxcore_header})
   target_delayload(winml_test_api ext-ms-win-dxcore-l1-*.dll)
