@@ -490,6 +490,7 @@ const LearningModelSessionAPITestsApi& getapi() {
 
   // HACK
   api.CreateSessionWithCastToFloat16InModel = SkipTest;
+  api.CreateSessionWithFloat16InitializersInModel = SkipTest;
 
   if (SkipGpuTests()) {
     api.CreateSessionDeviceDirectX = SkipTest;
