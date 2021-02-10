@@ -488,6 +488,9 @@ const LearningModelSessionAPITestsApi& getapi() {
     SetIntraOpNumThreads
   };
 
+  // HACK
+  api.CreateSessionWithCastToFloat16InModel = SkipTest;
+
   if (SkipGpuTests()) {
     api.CreateSessionDeviceDirectX = SkipTest;
     api.CreateSessionDeviceDirectXHighPerformance = SkipTest;
