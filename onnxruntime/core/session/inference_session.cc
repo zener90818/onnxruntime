@@ -50,7 +50,7 @@
 #include "core/util/protobuf_parsing_utils.h"
 #include "core/util/thread_utils.h"
 
-#if !defined(ORT_MINIMAL_BUILD)
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
 #include "core/framework/customregistry.h"
 #include "core/session/custom_ops.h"
 #endif
@@ -443,8 +443,33 @@ common::Status InferenceSession::RegisterExecutionProvider(std::unique_ptr<IExec
   return execution_providers_.Add(provider_type, std::move(p_exec_provider));
 }
 
-#if !defined(ORT_MINIMAL_BUILD)
+// Custom Op support
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
+common::Status InferenceSession::AddCustomOpDomains(const std::vector<OrtCustomOpDomain*>& op_domains) {
+  std::shared_ptr<CustomRegistry> custom_registry;
+  ORT_RETURN_IF_ERROR_SESSIONID_(CreateCustomRegistry(op_domains, custom_registry));
+  ORT_RETURN_IF_ERROR_SESSIONID_(RegisterCustomRegistry(custom_registry));
+  return Status::OK();
+}
 
+common::Status InferenceSession::RegisterCustomRegistry(std::shared_ptr<CustomRegistry> custom_registry) {
+  if (custom_registry == nullptr) {
+    return Status(common::ONNXRUNTIME, common::FAIL, "Received nullptr for custom registry");
+  }
+
+  custom_registries_.push_back(custom_registry);
+
+  // Insert session-level customized kernel registry.
+  kernel_registry_manager_.RegisterKernelRegistry(custom_registry->GetKernelRegistry());
+
+#if !defined(ORT_MINIMAL_BUILD)
+  custom_schema_registries_.push_back(custom_registry->GetOpschemaRegistry());
+#endif
+  return Status::OK();
+}
+#endif  // !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
+
+#if !defined(ORT_MINIMAL_BUILD)
 common::Status InferenceSession::RegisterGraphTransformer(
     std::unique_ptr<onnxruntime::GraphTransformer> p_graph_transformer, TransformerLevel level) {
   if (p_graph_transformer == nullptr) {
@@ -466,27 +491,6 @@ common::Status InferenceSession::RegisterGraphTransformer(
 common::Status InferenceSession::AddCustomTransformerList(const std::vector<std::string>& transformers_to_enable) {
   std::copy(transformers_to_enable.begin(), transformers_to_enable.end(), std::back_inserter(transformers_to_enable_));
 
-  return Status::OK();
-}
-
-common::Status InferenceSession::AddCustomOpDomains(const std::vector<OrtCustomOpDomain*>& op_domains) {
-  std::shared_ptr<CustomRegistry> custom_registry;
-  ORT_RETURN_IF_ERROR_SESSIONID_(CreateCustomRegistry(op_domains, custom_registry));
-  ORT_RETURN_IF_ERROR_SESSIONID_(RegisterCustomRegistry(custom_registry));
-  return Status::OK();
-}
-
-common::Status InferenceSession::RegisterCustomRegistry(std::shared_ptr<CustomRegistry> custom_registry) {
-  if (custom_registry == nullptr) {
-    return Status(common::ONNXRUNTIME, common::FAIL, "Received nullptr for custom registry");
-  }
-
-  custom_registries_.push_back(custom_registry);
-
-  // Insert session-level customized kernel registry.
-  kernel_registry_manager_.RegisterKernelRegistry(custom_registry->GetKernelRegistry());
-
-  custom_schema_registries_.push_back(custom_registry->GetOpschemaRegistry());
   return Status::OK();
 }
 
@@ -999,7 +1003,7 @@ Status InferenceSession::LoadOrtModel(std::function<Status()> load_ort_format_mo
 
   // Verify the ort_format_model_bytes_ is a valid InferenceSessionBuffer before we access the data
   flatbuffers::Verifier verifier(ort_format_model_bytes_.data(), ort_format_model_bytes_.size());
-  ORT_RETURN_IF_NOT(fbs::VerifyInferenceSessionBuffer(verifier));
+  ORT_RETURN_IF_NOT(fbs::VerifyInferenceSessionBuffer(verifier), "ORT model verification failed.");
 
   const auto* fbs_session = fbs::GetInferenceSession(ort_format_model_bytes_.data());
   ORT_RETURN_IF(nullptr == fbs_session, "InferenceSession is null. Invalid ORT format model.");
@@ -1016,7 +1020,15 @@ Status InferenceSession::LoadOrtModel(std::function<Status()> load_ort_format_mo
 
   // need to go from unique_ptr to shared_ptr when moving into model_
   std::unique_ptr<Model> tmp_model;
+#if !defined(ORT_MINIMAL_BUILD)
+  ORT_RETURN_IF_ERROR(Model::LoadFromOrtFormat(*fbs_model,
+                                               HasLocalSchema() ? &custom_schema_registries_ : nullptr,
+                                               *session_logger_, tmp_model));
+
+#else
   ORT_RETURN_IF_ERROR(Model::LoadFromOrtFormat(*fbs_model, *session_logger_, tmp_model));
+#endif
+
   ORT_RETURN_IF_ERROR(SaveModelMetadata(*tmp_model));
   model_ = std::move(tmp_model);
 

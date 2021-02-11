@@ -184,6 +184,9 @@ class InferenceSession {
     */
   common::Status AddCustomTransformerList(const std::vector<std::string>& transformers_to_enable) ORT_MUST_USE_RESULT;
 
+#endif  // !defined(ORT_MINIMAL_BUILD)
+
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
   /**
     * Add custom ops. This API is not thread safe.
     */
@@ -199,8 +202,7 @@ class InferenceSession {
     * @return OK if success.
     */
   common::Status RegisterCustomRegistry(std::shared_ptr<CustomRegistry> custom_registry) ORT_MUST_USE_RESULT;
-
-#endif  // !defined(ORT_MINIMAL_BUILD)
+#endif  // !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
 
   /**
     * Load an ONNX or ORT format model.
@@ -582,6 +584,9 @@ class InferenceSession {
 
 #if !defined(ORT_MINIMAL_BUILD)
   std::list<std::shared_ptr<onnxruntime::IOnnxRuntimeOpSchemaCollection>> custom_schema_registries_;
+#endif
+
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
 
   //CustomRegistry objects own the corresponding KernelRegistry and OnnxRuntimeOpSchemaRegistry objects.
   //So its lifetime should be same as its constituents. This vector is to extend the lifetime of the owner.
