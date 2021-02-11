@@ -1153,7 +1153,7 @@ TEST(CApiTest, get_available_providers) {
   char** providers;
   ASSERT_EQ(g_ort->GetAvailableProviders(&providers, &len), nullptr);
   ASSERT_GT(len, 0);
-  ASSERT_STREQ(providers[len-1], "CPUExecutionProvider");
+  ASSERT_STREQ(providers[len - 1], "CPUExecutionProvider");
   ASSERT_EQ(g_ort->ReleaseAvailableProviders(providers, len), nullptr);
 }
 
