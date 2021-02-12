@@ -196,7 +196,7 @@ stages:
       timeoutInMinutes: 120
       workspace:
         clean: all
-      pool: Linux-GPU-CUDA10
+      pool: Onnxruntime-Linux-GPU
       strategy:
         matrix:
           Python36:
@@ -268,7 +268,7 @@ stages:
       timeoutInMinutes: 180
       workspace:
         clean: all
-      pool: Linux-GPU-CUDA10
+      pool: Onnxruntime-Linux-GPU
       strategy:
         matrix:
           Python36:
