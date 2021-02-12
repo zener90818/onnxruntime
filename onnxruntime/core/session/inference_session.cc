@@ -50,12 +50,9 @@
 #include "core/util/protobuf_parsing_utils.h"
 #include "core/util/thread_utils.h"
 
-#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD) || defined(ORT_MINIMAL_BUILD_CUSTOM_OPS)
+// custom ops are not available in a minimal build unless ORT_MINIMAL_BUILD_CUSTOM_OPS is set
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_MINIMAL_BUILD_CUSTOM_OPS)
 #include "core/framework/customregistry.h"
-#endif
-
-// custom ops are not available by default in an ORT_EXTENDED_MINIMAL_BUILD
-#if !defined(ORT_MINIMAL_BUILD) || defined(onnxruntime_MINIMAL_BUILD_CUSTOM_OPS)
 #include "core/session/custom_ops.h"
 #endif
 
@@ -456,7 +453,7 @@ common::Status InferenceSession::RegisterExecutionProvider(std::unique_ptr<IExec
 }
 
 // Custom Op support
-#if !defined(ORT_MINIMAL_BUILD) || defined(onnxruntime_MINIMAL_BUILD_CUSTOM_OPS)
+#if !defined(ORT_MINIMAL_BUILD) || defined(ORT_MINIMAL_BUILD_CUSTOM_OPS)
 common::Status InferenceSession::AddCustomOpDomains(const std::vector<OrtCustomOpDomain*>& op_domains) {
   std::shared_ptr<CustomRegistry> custom_registry;
   ORT_RETURN_IF_ERROR_SESSIONID_(CreateCustomRegistry(op_domains, custom_registry));
