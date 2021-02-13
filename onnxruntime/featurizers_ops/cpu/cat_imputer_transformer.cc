@@ -63,8 +63,8 @@ class CatImputerTransformer final : public OpKernel {
   }
 
   Status Compute(OpKernelContext* ctx) const override {
-    utils::MLTypeCallDispatcher<float, double, std::string> t_disp(ctx->Input<Tensor>(1)->GetElementType());
-    t_disp.Invoke<CatImputerTransformerImpl>(ctx);
+    utils::MLTypeCallDispatcher<CatImputerTransformerImpl, float, double, std::string> t_disp(ctx->Input<Tensor>(1)->GetElementType());
+    t_disp.Invoke(ctx);
     return Status::OK();
   }
 };

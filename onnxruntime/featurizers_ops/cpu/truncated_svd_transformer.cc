@@ -65,8 +65,9 @@ class TruncatedSVDTransformer final : public OpKernel {
   }
 
   Status Compute(OpKernelContext* ctx) const override {
-    utils::MLTypeCallDispatcher<float, double> t_disp(ctx->Input<Tensor>(1)->GetElementType());
-    t_disp.Invoke<TruncatedSVDTransformerImpl>(ctx);
+    utils::MLTypeCallDispatcher<TruncatedSVDTransformerImpl, float, double>
+        t_disp(ctx->Input<Tensor>(1)->GetElementType());
+    t_disp.Invoke(ctx);
     return Status::OK();
   }
 };

@@ -142,7 +142,6 @@ Status VariadicElementwiseOp<VariadicElementwiseOpTag, SupportedElementTypes...>
   }
 
   const auto element_type = first_input_tensor.GetElementType();
-  utils::MLTypeCallDispatcher<SupportedElementTypes...> dispatcher(element_type);
 
   // special case for no broadcasting and few enough inputs
   if (input_count <= k_max_input_batch_size &&
@@ -155,12 +154,17 @@ Status VariadicElementwiseOp<VariadicElementwiseOpTag, SupportedElementTypes...>
 
     // special case for no broadcasting and 2 inputs
     if (input_count == 2) {
-      return dispatcher.template InvokeRet<Status, BinaryImplDispatchTarget>(
-          Stream(), input_tensors[0], input_tensors[1], output_tensor);
+      utils::MLTypeCallDispatcherRet<Status, BinaryImplDispatchTarget, SupportedElementTypes...> dispatcher(element_type);
+      ORT_RETURN_IF_ERROR(dispatcher.Invoke(Stream(), input_tensors[0], input_tensors[1], output_tensor));
+
+      return Status::OK();
     }
 
-    return dispatcher.template InvokeRet<Status, NoBroadcastBatchImplDispatchTarget>(
-        Stream(), input_tensors, output_tensor);
+    utils::MLTypeCallDispatcherRet<Status, NoBroadcastBatchImplDispatchTarget, SupportedElementTypes...> dispatcher(
+        element_type);
+    ORT_RETURN_IF_ERROR(dispatcher.Invoke(Stream(), input_tensors, output_tensor));
+
+    return Status::OK();
   }
 
   // compute output shape first, using broadcast rule
@@ -175,13 +179,20 @@ Status VariadicElementwiseOp<VariadicElementwiseOpTag, SupportedElementTypes...>
 
   // special case for 2 inputs
   if (input_count == 2) {
-    return dispatcher.template InvokeRet<Status, BinaryImplDispatchTarget>(
-        Stream(), input_tensors[0], input_tensors[1], output_tensor);
+    utils::MLTypeCallDispatcherRet<Status, BinaryImplDispatchTarget, SupportedElementTypes...> dispatcher(element_type);
+    ORT_RETURN_IF_ERROR(dispatcher.Invoke(Stream(), input_tensors[0], input_tensors[1], output_tensor));
+
+    return Status::OK();
   }
 
   // general case for more than 2 inputs
-  return dispatcher.template InvokeRet<Status, GeneralImplDispatchTarget>(
-      Stream(), input_tensors, output_tensor);
+  {
+    utils::MLTypeCallDispatcherRet<Status, GeneralImplDispatchTarget, SupportedElementTypes...> dispatcher(
+        element_type);
+    ORT_RETURN_IF_ERROR(dispatcher.Invoke(Stream(), input_tensors, output_tensor));
+  }
+
+  return Status::OK();
 }
 
 namespace {

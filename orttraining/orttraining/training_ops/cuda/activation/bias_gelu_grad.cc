@@ -76,8 +76,11 @@ Status BiasGeluGrad_dX<GeluComputationMode>::ComputeInternal(OpKernelContext* co
 
   const auto input_size = input_shape.Size(), bias_size = bias_shape.Size();
 
-  utils::MLTypeCallDispatcher<ALL_IEEE_FLOAT_DATA_TYPES> dispatcher{X->GetElementType()};
-  dispatcher.Invoke<KernelLaunchDispatcher>(Stream(), input_size, bias_size, *dY, *X, *B, *dX);
+  utils::MLTypeCallDispatcher<
+      KernelLaunchDispatcher,
+      ALL_IEEE_FLOAT_DATA_TYPES>
+      dispatcher{X->GetElementType()};
+  dispatcher.Invoke(Stream(), input_size, bias_size, *dY, *X, *B, *dX);
 
   return Status::OK();
 }

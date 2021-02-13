@@ -91,8 +91,9 @@ class AnalyticalRollingWindowTransformer final : public OpKernel {
 }
 
   Status Compute(OpKernelContext* ctx) const override {
-    utils::MLTypeCallDispatcher<float, double> t_disp(ctx->Input<Tensor>(2)->GetElementType());
-    t_disp.Invoke<AnalyticalRollingWindowTransformerImpl>(ctx);
+
+    utils::MLTypeCallDispatcher<AnalyticalRollingWindowTransformerImpl, float, double> t_disp(ctx->Input<Tensor>(2)->GetElementType());
+    t_disp.Invoke(ctx);
     return Status::OK();
   }
 };
@@ -103,8 +104,9 @@ class SimpleRollingWindowTransformer final : public OpKernel {
 }
 
   Status Compute(OpKernelContext* ctx) const override {
-    utils::MLTypeCallDispatcher<float, double> t_disp(ctx->Input<Tensor>(2)->GetElementType());
-    t_disp.Invoke<SimpleRollingWindowTransformerImpl>(ctx);
+
+    utils::MLTypeCallDispatcher<SimpleRollingWindowTransformerImpl, float, double> t_disp(ctx->Input<Tensor>(2)->GetElementType());
+    t_disp.Invoke(ctx);
     return Status::OK();
   }
 };

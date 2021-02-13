@@ -65,15 +65,16 @@ Status BiasSoftmax::ComputeInternal(OpKernelContext* ctx) const {
   const int broadcast_size = N / static_cast<int>(X_shape.SizeToDimension(broadcast_axis));
 
   const size_t elem_size = X->DataType()->Size();
-  utils::MLTypeCallDispatcher<float, MLFloat16> t_disp(X->GetElementType());
-
   if (D <= 1024 && D * elem_size <= 4096) {
     // expect thread blocks can fill SM at high occupancy without overflowing registers
-    t_disp.Invoke<DispatchBiasSoftmaxForward>(Stream(), Y, X, B, D, N, D, broadcast_size);
+    utils::MLTypeCallDispatcher<DispatchBiasSoftmaxForward, float, MLFloat16>
+        t_disp(X->GetElementType());
+    t_disp.Invoke(Stream(), Y, X, B, D, N, D, broadcast_size);
   } else {
     // need to fallback to add kernel + CUDA DNN library softmax call :/
-    t_disp.Invoke<DispatchBiasSoftMaxForwardViaDnnLibrary>(
-        Stream(), MiopenHandle(), D, N, broadcast_axis, softmax_axis, X_shape, X, B_shape, B, Y);
+    utils::MLTypeCallDispatcher<DispatchBiasSoftMaxForwardViaDnnLibrary, float, MLFloat16>
+        t_disp(X->GetElementType());
+    t_disp.Invoke(Stream(), MiopenHandle(), D, N, broadcast_axis, softmax_axis, X_shape, X, B_shape, B, Y);
   }
 
   return Status::OK();

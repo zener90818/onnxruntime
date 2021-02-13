@@ -54,8 +54,8 @@ class ImputationMarkerTransformer final : public OpKernel {
   }
 
   Status Compute(OpKernelContext* ctx) const override {
-    utils::MLTypeCallDispatcher<float, double, std::string> t_disp(ctx->Input<Tensor>(1)->GetElementType());
-    t_disp.Invoke<ImputationMarkerTransformerImpl>(ctx);
+    utils::MLTypeCallDispatcher<ImputationMarkerTransformerImpl, float, double, std::string> t_disp(ctx->Input<Tensor>(1)->GetElementType());
+    t_disp.Invoke(ctx);
     return Status::OK();
   }
 };

@@ -97,9 +97,10 @@ Status Range::ComputeInternal(OpKernelContext* ctx) const {
     return Status(common::ONNXRUNTIME, common::FAIL, "input count mismatch");
   }
 
-  utils::MLTypeCallDispatcher<int32_t, float, int64_t, double, int16_t>
+  utils::MLTypeCallDispatcherRet<Status, cuda_range_internal::CallCudaRangeImpl, int32_t,
+                                 float, int64_t, double, int16_t>
       t_disp(input_tensor->GetElementType());
-  return t_disp.InvokeRet<Status, cuda_range_internal::CallCudaRangeImpl>(Stream(), ctx);
+  return t_disp.Invoke(Stream(), ctx);
 }
 
 }  // namespace cuda
