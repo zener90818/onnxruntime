@@ -27,8 +27,6 @@ jobs:
   - name: runCodesignValidationInjection
     value: false
   timeoutInMinutes: 60
-  dependsOn:
-    Jar_Packaging_GPU
   steps:
   - template: templates/set-version-number-variables-step.yml
   - task: DownloadPipelineArtifact@2
