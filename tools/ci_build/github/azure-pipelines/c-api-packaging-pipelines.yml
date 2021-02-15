@@ -23,6 +23,7 @@ jobs:
 - job: Final_Jar_Testing_Linux_GPU
   workspace:
     clean: all
+  pool: 'Linux-GPU-CUDA10'
   variables:
   - name: runCodesignValidationInjection
     value: false
