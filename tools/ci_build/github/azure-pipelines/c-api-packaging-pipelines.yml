@@ -29,6 +29,8 @@ jobs:
     value: false
   timeoutInMinutes: 60
   steps:
+  - checkout: self
+    submodules: false
   - template: templates/set-version-number-variables-step.yml
   - task: DownloadPipelineArtifact@2
     displayName: 'Download Final Jar'
