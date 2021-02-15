@@ -48,7 +48,7 @@ jobs:
     inputs:
       targetType: filePath
       filePath: 'tools/ci_build/github/linux/java_linux_final_test.sh'
-      arguments: '-o $(Build.BinariesDirectory)  -v $(OnnxRuntimeVersion)'
+      arguments: '-r $(Build.BinariesDirectory)  -v $(OnnxRuntimeVersion)'
 
   - template: templates/component-governance-component-detection-steps.yml
     parameters :
