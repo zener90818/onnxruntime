@@ -141,7 +141,7 @@ jobs:
 
   - script: |
      dir
-    workingDirectory: '$(Build.BinariesDirectory)/nuget-artifact'
+    workingDirectory: '$(Build.BinariesDirectory)\RelWithDebInfo\RelWithDebInfo\nuget-artifacts'
     displayName: 'List artifacts'
 
   - script: |
