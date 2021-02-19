@@ -11,11 +11,12 @@ ARG PYTORCH_VERSION=1.6.0
 
 ARG BUILD_CONFIG=Release
 ARG OPENMPI_PATH=/opt/openmpi-${OPENMPI_VERSION}
-ARG COMMIT=master
+ARG COMMIT=sukha/investigate-divergence-01062021
 
 # cuda development image for building sources
 # FROM nvidia/cuda:10.2-cudnn8-devel-ubuntu18.04 as builder
-FROM nvidia/cuda:sha256:f7b9d3a03fa3b78f079b2db2ec20774f0dc56a4758963fcdfee76db3f64a8b06
+FROM nvidia/cuda@sha256:fad2af407a2c4b7cdd84e0ed791fa39ba8dbab48cc4e1c7b932bf28638a9a5a3
+
 
 # set location for builds
 WORKDIR /stage
