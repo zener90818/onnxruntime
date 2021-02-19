@@ -11,10 +11,12 @@ ARG PYTORCH_VERSION=1.6.0
 
 ARG BUILD_CONFIG=Release
 ARG OPENMPI_PATH=/opt/openmpi-${OPENMPI_VERSION}
-ARG COMMIT=master
+ARG COMMIT=sukha/investigate-divergence-02192021
 
 # cuda development image for building sources
-FROM nvidia/cuda:10.2-cudnn8-devel-ubuntu18.04 as builder
+# FROM nvidia/cuda:10.2-cudnn8-devel-ubuntu18.04 as builder
+FROM nvidia/cuda@sha256:fad2af407a2c4b7cdd84e0ed791fa39ba8dbab48cc4e1c7b932bf28638a9a5a3
+
 
 # set location for builds
 WORKDIR /stage
@@ -72,6 +74,8 @@ RUN apt-get -y update && apt-get -y --no-install-recommends install \
         --enable-mt &&\
     make -j"$(nproc)" &&\
     make install
+ENV PATH=/opt/ucx/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/ucx/lib:$LD_LIBRARY_PATH
 
 # build openmpi (use --prefix /opt/openmpi-xxx to move to runtime image)
 # note: require --enable-orterun-prefix-by-default for Azure machine learning compute
@@ -95,6 +99,15 @@ RUN export OMPI_BASE=${OPENMPI_VERSION%.*} &&\
     ldconfig
 ENV PATH=${OPENMPI_PATH}/bin:$PATH
 ENV LD_LIBRARY_PATH=${OPENMPI_PATH}/lib:$LD_LIBRARY_PATH
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_MCA_pml=ucx
+RUN apt-get -y update && apt-get -y --no-install-recommends install \
+        openssh-server \
+        openssh-client \
+        libibverbs-dev \
+        libnuma-dev &&\
+    ldconfig
 
 # install mpi4py (be sure to link existing /opt/openmpi-xxx)
 RUN CC=mpicc MPICC=mpicc pip install mpi4py --no-binary mpi4py
@@ -102,27 +115,6 @@ RUN CC=mpicc MPICC=mpicc pip install mpi4py --no-binary mpi4py
 # install pytorch
 ARG PYTORCH_VERSION
 RUN pip install torch==${PYTORCH_VERSION}
-
-# in case you need to build pytorch:
-# note: if you want specific branch or to link system cuda libraries or MPI
-# note: recommend using many high-frequency cores (e.g. 32+ skylake cores)
-# ENV CUDA_HOME="/usr/local/cuda" \
-#     CUDNN_LIBRARY="/usr/lib/x86_64-linux-gnu" \
-#     NCCL_INCLUDE_DIR="/usr/include" \
-#     NCCL_LIB_DIR="/usr/lib/x86_64-linux-gnu" \
-#     USE_SYSTEM_NCCL=1
-# RUN conda install -y \
-#         mkl \
-#         mkl-include \
-#         ninja \
-#         pyyaml \
-#         cffi &&\
-#     cd /stage && git clone https://github.com/pytorch/pytorch.git &&\
-#     cd pytorch &&\
-#     git checkout v1.6.0 &&\
-#     git submodule update --init --recursive &&\
-#     python setup.py bdist_wheel -d build/wheel &&\
-#     pip install build/wheel/*.whl
 
 # build onnxruntime wheel with cuda and mpi support
 ARG BUILD_CONFIG
@@ -153,71 +145,79 @@ RUN cd /stage && git clone https://github.com/microsoft/onnxruntime.git &&\
 # Install AzureML support and commonly used packages.
 RUN pip install azureml-defaults sentencepiece==0.1.92 transformers==2.11.0 msgpack==1.0.0 tensorboardX==1.8 tensorboard==2.3.0
 
-# switch to cuda runtime environment
-# note: launch with --gpus all or nvidia-docker
-FROM nvidia/cuda:10.2-cudnn8-runtime-ubuntu18.04
-WORKDIR /stage
+# install nvidia run script dependencies
+RUN apt-get -y update &&\
+    apt-get install -y git &&\
+    pip install --no-cache-dir \
+    h5py boto3 requests six ipdb \
+    html2text nltk progressbar tqdm sympy \
+    git+https://github.com/NVIDIA/dllogger
 
-# install ucx
-# note: launch with --cap-add=sys_nice to avoid 'mbind' warnings
-COPY --from=builder /opt/ucx /opt/ucx
-ENV PATH=/opt/ucx/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/ucx/lib:$LD_LIBRARY_PATH
+# # switch to cuda runtime environment
+# # note: launch with --gpus all or nvidia-docker
+# FROM nvidia/cuda:10.2-cudnn8-runtime-ubuntu18.04
+# WORKDIR /stage
 
-# install openmpi
-# note: permit mpirun as root for Azure cluster submissions
-# note: enforce openmpi select ucx or fail
-ARG OPENMPI_VERSION
-ARG OPENMPI_PATH
-COPY --from=builder ${OPENMPI_PATH} ${OPENMPI_PATH}
-ENV PATH=${OPENMPI_PATH}/bin:$PATH
-ENV LD_LIBRARY_PATH=${OPENMPI_PATH}/lib:$LD_LIBRARY_PATH
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-ENV OMPI_MCA_pml=ucx
-RUN apt-get -y update && apt-get -y --no-install-recommends install \
-        openssh-server \
-        openssh-client \
-        libibverbs-dev \
-        libnuma-dev &&\
-    ldconfig
+# # install ucx
+# # note: launch with --cap-add=sys_nice to avoid 'mbind' warnings
+# COPY --from=builder /opt/ucx /opt/ucx
+# ENV PATH=/opt/ucx/bin:$PATH
+# ENV LD_LIBRARY_PATH=/opt/ucx/lib:$LD_LIBRARY_PATH
 
-# copy conda environment (includes numpy, mpi4py, pytorch, onnxruntime)
-COPY --from=builder /opt/conda /opt/conda
-ENV PATH=/opt/conda/bin:${PATH}
+# # install openmpi
+# # note: permit mpirun as root for Azure cluster submissions
+# # note: enforce openmpi select ucx or fail
+# ARG OPENMPI_VERSION
+# ARG OPENMPI_PATH
+# COPY --from=builder ${OPENMPI_PATH} ${OPENMPI_PATH}
+# ENV PATH=${OPENMPI_PATH}/bin:$PATH
+# ENV LD_LIBRARY_PATH=${OPENMPI_PATH}/lib:$LD_LIBRARY_PATH
+# ENV OMPI_ALLOW_RUN_AS_ROOT=1
+# ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+# ENV OMPI_MCA_pml=ucx
+# RUN apt-get -y update && apt-get -y --no-install-recommends install \
+#         openssh-server \
+#         openssh-client \
+#         libibverbs-dev \
+#         libnuma-dev &&\
+#     ldconfig
 
-# make ssh/sshd less strict for wiring containers on Azure VM scale set
-# note: use 'service ssh start' to launch sshd (will fail if 22 in use)
-# note: can also set port != 22 and set port=X in MPI hosts file
-# note: need to setup password free ssh login between MPI hosts
-RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' \
-        /etc/ssh/sshd_config &&\
-    sed -i 's/#StrictModes yes/StrictModes no/g' \
-        /etc/ssh/sshd_config &&\
-    sed -i 's/#   StrictHostKeyChecking ask/    StrictHostKeyChecking no/g' \
-        /etc/ssh/ssh_config &&\
-    mkdir /run/sshd &&\
-    chmod u=rwx,go=rx /run/sshd
+# # copy conda environment (includes numpy, mpi4py, pytorch, onnxruntime)
+# COPY --from=builder /opt/conda /opt/conda
+# ENV PATH=/opt/conda/bin:${PATH}
 
-# export versions
-ARG UCX_VERSION
-ARG OPENMPI_VERSION
-ARG CONDA_VERSION
-ARG NUMPY_VERSION
-ARG ONNX_VERSION
-ARG PYTORCH_VERSION
-LABEL UCX_VERSION=${UCX_VERSION}
-LABEL OPENMPI_VERSION=${OPENMPI_VERSION}
-LABEL CONDA_VERSION=${CONDA_VERSION}
-LABEL NUMPY_VERSION=${NUMPY_VERSION}
-LABEL ONNX_VERSION=${ONNX_VERSION}
-LABEL PYTORCH_VERSION=${PYTORCH_VERSION}
+# # make ssh/sshd less strict for wiring containers on Azure VM scale set
+# # note: use 'service ssh start' to launch sshd (will fail if 22 in use)
+# # note: can also set port != 22 and set port=X in MPI hosts file
+# # note: need to setup password free ssh login between MPI hosts
+# RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' \
+#         /etc/ssh/sshd_config &&\
+#     sed -i 's/#StrictModes yes/StrictModes no/g' \
+#         /etc/ssh/sshd_config &&\
+#     sed -i 's/#   StrictHostKeyChecking ask/    StrictHostKeyChecking no/g' \
+#         /etc/ssh/ssh_config &&\
+#     mkdir /run/sshd &&\
+#     chmod u=rwx,go=rx /run/sshd
 
-# clean\finalize environment
-# note: adds onnxruntime license and third party notices
-RUN conda remove -y cmake &&\
-    apt-get purge -y build-essential &&\
-    apt-get autoremove -y &&\
-    rm -fr /stage
-WORKDIR /workspace
-COPY --from=builder /stage/*.txt /workspace/
+# # export versions
+# ARG UCX_VERSION
+# ARG OPENMPI_VERSION
+# ARG CONDA_VERSION
+# ARG NUMPY_VERSION
+# ARG ONNX_VERSION
+# ARG PYTORCH_VERSION
+# LABEL UCX_VERSION=${UCX_VERSION}
+# LABEL OPENMPI_VERSION=${OPENMPI_VERSION}
+# LABEL CONDA_VERSION=${CONDA_VERSION}
+# LABEL NUMPY_VERSION=${NUMPY_VERSION}
+# LABEL ONNX_VERSION=${ONNX_VERSION}
+# LABEL PYTORCH_VERSION=${PYTORCH_VERSION}
+
+# # clean\finalize environment
+# # note: adds onnxruntime license and third party notices
+# RUN conda remove -y cmake &&\
+#     apt-get purge -y build-essential &&\
+#     apt-get autoremove -y &&\
+#     rm -fr /stage
+# WORKDIR /workspace
+# COPY --from=builder /stage/*.txt /workspace/
