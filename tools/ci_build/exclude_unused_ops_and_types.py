@@ -17,6 +17,12 @@ ort_root = os.path.abspath(os.path.join(script_path, '..', '..', ))
 ort_tools_py_path = os.path.abspath(os.path.join(ort_root, 'tools', 'python'))
 sys.path.append(ort_tools_py_path)
 
+try:
+    import flatbuffers  # noqa
+except ImportError:
+    get_logger('exclude_unused_ops_and_types').info('flatbuffers python module must be installed.')
+    raise
+
 from util import parse_config  # noqa
 from util.ort_format_model.operator_type_usage_processors import OperatorTypeUsageManager  # noqa
 
