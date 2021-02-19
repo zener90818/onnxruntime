@@ -86,7 +86,7 @@ def main():
         description='Analyze sections in a binary using readelf. '
                     'Perform a diff between two binaries if --base_binary_path is specified.')
 
-    argparser.add_argument('-r', '--readelf_path', type=str,
+    argparser.add_argument('-r', '--readelf_path', type=str, default='readelf',
                            help='Path to readelf executable.')
     argparser.add_argument('-b', '--base_binary_path', type=os.path.realpath,
                            default=None, help='Path to base binary if performing a diff between two binaries.')
@@ -96,6 +96,7 @@ def main():
                            help='Shared library to analyze.')
 
     args = argparser.parse_args()
+    args.binary_path = os.path.abspath(args.binary_path)
 
     out_file = sys.stdout
     if args.write_to:
