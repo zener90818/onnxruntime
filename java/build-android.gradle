@@ -2,8 +2,10 @@ apply plugin: 'com.android.library'
 
 def jniLibsDir = System.properties['jniLibsDir']
 def buildDir = System.properties['buildDir']
+def ortVersion = System.properties['ortVersion']
 
 project.buildDir = buildDir
+project.version = ortVersion
 
 buildscript {
 	repositories {
@@ -33,7 +35,7 @@ android {
 		minSdkVersion 24
 		targetSdkVersion 28
 		versionCode 1
-		versionName "1.0"
+		versionName = project.version
 
 		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -44,12 +46,14 @@ android {
 			abortOnError false
 		}
 	}
+
 	buildTypes {
 		release {
 			minifyEnabled false
 			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 		}
 	}
+
 	compileOptions {
 		sourceCompatibility = 1.8
 		targetCompatibility = 1.8
@@ -60,9 +64,43 @@ android {
 			jniLibs.srcDirs = [jniLibsDir]
 		}
 	}
+
+	libraryVariants.all { variant ->
+		variant.outputs.each { output ->
+			output.outputFileName = "${archivesBaseName}-${variant.name}-${defaultConfig.versionName}.aar"
+		}
+	}
+}
+
+task allJar(type: Jar) {
+	manifest {
+		attributes('Implementation-Version': project.version)
+	}
+}
+
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier "sources"
+}
+
+task javadoc(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives javadocJar
+    archives sourcesJar
 }
 
 dependencies {
+	compile fileTree(dir: 'libs', include: ['*.jar'])
+
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 	testImplementation 'com.google.protobuf:protobuf-java:3.10.0'
