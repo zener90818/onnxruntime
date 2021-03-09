@@ -25,7 +25,7 @@
 #include "core/profile/context.h"
 #endif
 
-// #define TRACE_EXECUTION
+#define TRACE_EXECUTION
 
 // Define this symbol to create Concurrency Visualizer markers.
 // See https://docs.microsoft.com/en-us/visualstudio/profiling/concurrency-visualizer-sdk
