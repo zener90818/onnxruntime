@@ -680,6 +680,8 @@ class ORTTrainer(object):
                     cuda_ep_options["cuda_mem_limit"] = self.options.device.mem_limit
 
                 cuda_ep_name = "CUDAExecutionProvider"
+                if "ROCMExecutionProvider" in providers:
+                    cuda_ep_name = "ROCMExecutionProvider"
 
                 if cuda_ep_name not in providers:
                     raise RuntimeError(
