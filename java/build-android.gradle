@@ -1,11 +1,15 @@
 apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 
 def jniLibsDir = System.properties['jniLibsDir']
 def buildDir = System.properties['buildDir']
-def ortVersion = System.properties['ortVersion']
+// def ortVersion = System.properties['ortVersion']
 
 project.buildDir = buildDir
-project.version = ortVersion
+project.version = rootProject.file('../VERSION_NUMBER').text.trim()
+project.group = "com.microsoft.onnxruntime"
+
+def mavenArtifactId = project.name
 
 buildscript {
 	repositories {
@@ -55,8 +59,8 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = 1.8
-		targetCompatibility = 1.8
+		sourceCompatibility = JavaVersion.VERSION_1_8
+		targetCompatibility = JavaVersion.VERSION_1_8
 	}
 
 	sourceSets {
@@ -65,37 +69,26 @@ android {
 		}
 	}
 
-	libraryVariants.all { variant ->
-		variant.outputs.each { output ->
-			output.outputFileName = "${archivesBaseName}-${variant.name}-${defaultConfig.versionName}.aar"
-		}
-	}
-}
-
-task allJar(type: Jar) {
-	manifest {
-		attributes('Implementation-Version': project.version)
-	}
 }
 
 task sourcesJar(type: Jar) {
-    from android.sourceSets.main.java.srcDirs
-    classifier "sources"
+	from android.sourceSets.main.java.srcDirs
+	classifier "sources"
 }
 
 task javadoc(type: Javadoc) {
-    source = android.sourceSets.main.java.srcDirs
-    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+	source = android.sourceSets.main.java.srcDirs
+	classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
+	classifier = 'javadoc'
+	from javadoc.destinationDir
 }
 
 artifacts {
-    archives javadocJar
-    archives sourcesJar
+	archives javadocJar
+	archives sourcesJar
 }
 
 dependencies {
@@ -104,4 +97,53 @@ dependencies {
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 	testImplementation 'com.google.protobuf:protobuf-java:3.10.0'
+}
+
+publishing {
+	publications {
+		maven(MavenPublication) {
+			groupId = project.group
+			artifactId = mavenArtifactId
+
+			// Three artifacts, the `aar`, the sources and the javadoc
+			artifact("$buildDir/outputs/aar/${project.getName()}-release.aar")
+			artifact javadocJar
+			artifact sourcesJar
+
+			pom {
+				name = 'onnx-runtime'
+				description = 'ONNX Runtime is a performance-focused inference engine for ONNX (Open Neural Network Exchange) models.'
+				url = 'https://microsoft.github.io/onnxruntime/'
+				licenses {
+					license {
+						name = 'MIT License'
+						url = 'https://opensource.org/licenses/MIT'
+					}
+				}
+				organization {
+					name = 'Microsoft'
+					url = 'http://www.microsoft.com'
+				}
+				scm {
+					connection = 'scm:git:git://github.com:microsoft/onnxruntime.git'
+					developerConnection = 'scm:git:ssh://github.com/microsoft/onnxruntime.git'
+					url = 'http://github.com/microsoft/onnxruntime'
+				}
+				developers {
+					developer {
+						id = 'onnxruntime'
+						name = 'ONNX Runtime'
+						email = 'onnxruntime@microsoft.com'
+					}
+				}
+			}
+		}
+	}
+
+	//publish to filesystem repo
+	repositories{
+		maven {
+			url "$buildDir/repo"
+		}
+	}
 }
