@@ -69,7 +69,6 @@ jobs:
     - ${{ if eq(parameters['RunORTModulePipeline'], 'true') }}:
       - template: |
          ${{ parameters.ORTModulePipeline }}
-        displayName: 'Running ORTModule Pipeline'
     - template: component-governance-component-detection-steps.yml
       parameters :
         condition : 'succeeded'
