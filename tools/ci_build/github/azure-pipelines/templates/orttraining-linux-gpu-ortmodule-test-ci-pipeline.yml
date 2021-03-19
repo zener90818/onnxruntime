@@ -11,7 +11,7 @@ steps:
       --volume $(Build.SourcesDirectory):/onnxruntime_src \
       --volume $(Build.BinariesDirectory):/build \
       ${{ parameters.DockerImageTag }} \
-        pip install --force-reinstall -r tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage1/requirements.txt
+        pip install --force-reinstall -r /onnxruntime_src/tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage1/requirements.txt
   displayName: 'Install ORTModule Test Dependencies 1'
   condition: succeededOrFailed()
 
@@ -23,7 +23,7 @@ steps:
       --volume $(Build.SourcesDirectory):/onnxruntime_src \
       --volume $(Build.BinariesDirectory):/build \
       ${{ parameters.DockerImageTag }} \
-        pip install --force-reinstall -r tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage2/requirements.txt
+        pip install --force-reinstall -r /onnxruntime_src/tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage2/requirements.txt
   displayName: 'Install ORTModule Test Dependencies 2'
   condition: succeededOrFailed()
 
