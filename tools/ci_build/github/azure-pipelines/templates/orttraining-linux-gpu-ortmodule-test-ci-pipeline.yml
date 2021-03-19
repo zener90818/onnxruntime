@@ -1,5 +1,3 @@
-trigger: none
-
 jobs:
 - job: Onnxruntime_Linux_GPU_ORTModule_Test
 
