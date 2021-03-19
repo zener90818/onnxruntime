@@ -8,6 +8,7 @@ parameters:
   NuPackScript: ''
   RunORTModulePipeline: 'false'
   ORTModulePipeline: ''
+  DockerImageTag: ''
   ArtifactName: 'drop-linux'
   TimeoutInMinutes: 120
   # Controls whether unreleased onnx opsets are allowed. Default is set to 1
@@ -69,6 +70,8 @@ jobs:
     - ${{ if eq(parameters['RunORTModulePipeline'], 'true') }}:
       - template: |
          ${{ parameters.ORTModulePipeline }}
+        parameters:
+          DockerImageTag: ${{ parameters.DockerImageTag }}
     - template: component-governance-component-detection-steps.yml
       parameters :
         condition : 'succeeded'

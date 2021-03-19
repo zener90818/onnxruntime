@@ -8,15 +8,18 @@ jobs:
     SubmoduleCheckoutMode: 'recursive'
     RunDockerBuildArgs: >
       -o ubuntu18.04 -d gpu -r $(Build.BinariesDirectory)
+      -t onnxruntime_orttraining_ortmodule_tests_image
       -x "
       --enable_training
       --config $(buildConfig)
       --build_wheel
       --enable_nvtx_profile
+      --skip_tests
       "
     DoNugetPack: 'false'
     RunORTModulePipeline: 'true'
     ORTModulePipeline: 'orttraining-linux-gpu-ortmodule-test-ci-pipeline.yml'
+    DockerImageTag: 'onnxruntime_orttraining_ortmodule_tests_image'
     ArtifactName: 'drop-linux'
     TimeoutInMinutes: 120
     # Enable unreleased onnx opsets in CI builds
