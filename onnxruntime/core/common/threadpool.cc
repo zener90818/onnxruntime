@@ -51,8 +51,11 @@ static_assert(sizeof(LoopCounterShard) == CACHE_LINE_BYTES, "Expected loop count
 class alignas(CACHE_LINE_BYTES) LoopCounter {
 public:
  LoopCounter(uint64_t num_iterations,
+             uint64_t d_of_p,
              uint64_t block_size = 1) : _block_size(block_size),
-                                        _num_shards(GetNumShards(num_iterations, block_size)) {
+                                        _num_shards(GetNumShards(num_iterations,
+                                                                 d_of_p,
+                                                                 block_size)) {
    // Divide the iteration space between the shards.  If the iteration
    // space does not divide evenly into shards of multiples of
    // block_size then the final shard is left uneven.
@@ -66,10 +69,9 @@ public:
      // threads is provided via the thread pool
      _shards[shard]._next.store(shard * iterations_per_shard,
                                 ::std::memory_order_relaxed);
-     _shards[shard]._end = (shard+1) * iterations_per_shard;
+     bool is_last_shard = (shard == _num_shards-1);
+     _shards[shard]._end = is_last_shard ? num_iterations : ((shard+1) * iterations_per_shard);
    }
-
-   _shards[_num_shards - 1]._end = num_iterations;
  }
 
  // Allocate each thread to a home shard, from which it starts
@@ -111,9 +113,18 @@ public:
 
 private:
   // Derive the number of shards to use for a given loop.  We require
-  // at least one block of work per shard, and subject to that
-  // constraint we use [1,MAX_SHARDS) shards.
+  // at least one block of work per shard, and subject to the
+  // constraints:
+  //
+  // - We use no more than MAX_SHARDS (limiting the amount of space needed
+  //   for the LoopCounter, and work needed to confirm that all shards have been
+  //   completed at the end of a loop).
+  //
+  // - The number of shards is <= the number of threads (d_of_p).
+  //   Hence, at low thread counts, each of N threads will get its own
+  //   shard representing 1/N of the work.
   static unsigned GetNumShards(uint64_t num_iterations,
+                               uint64_t d_of_p,
                                uint64_t block_size) {
     unsigned num_shards;
     auto num_blocks = num_iterations / block_size;
@@ -123,6 +134,9 @@ private:
       num_shards = static_cast<unsigned>(num_blocks);
     } else {
       num_shards = MAX_SHARDS;
+    }
+    if (num_shards > d_of_p) {
+      num_shards = static_cast<unsigned>(d_of_p);
     }
     return num_shards;
   }
@@ -364,6 +378,11 @@ bool ThreadPool::ShouldParallelize(const concurrency::ThreadPool* tp) {
   return (DegreeOfParallelism(tp) != 1);
 }
 
+// Temporary control over maximum DoP for experiments
+static bool checked_max_dop = false;
+static bool set_max_dop = false;
+static int max_dop = 0;
+  
 int ThreadPool::DegreeOfParallelism(const concurrency::ThreadPool* tp) {
 #ifdef _OPENMP
   // When using OpenMP, omp_get_num_threads() returns the number of threads in the
@@ -375,7 +394,22 @@ int ThreadPool::DegreeOfParallelism(const concurrency::ThreadPool* tp) {
 #else
   // When not using OpenMP, we parallelise over the N threads created by the pool
   // tp, plus 1 for the thread entering a loop.
-  return tp ? (tp->NumThreads()+1) : 1;
+  //  return tp ? (tp->NumThreads()+1) : 1;
+  int dop = tp ? (tp->NumThreads()+1) : 1;
+  if (!checked_max_dop) {
+    if (IsEnvVarDefined("ORT_MAX_DOP")) {
+      auto e = GetEnv("ORT_MAX_DOP");
+      if ((max_dop = atoi(e.get())) != 0) {
+        ::std::cerr << "Setting max DoP " << max_dop << "\n";
+        set_max_dop = true;
+      }
+    }
+    checked_max_dop = true;
+  }
+  if (set_max_dop) {
+    dop = ::std::min(dop, max_dop);
+  }
+  return dop;    
 #endif
 }
 
