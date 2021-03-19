@@ -7,23 +7,29 @@ jobs:
   pool: 'Linux-Single-GPU-V100'
 
   steps:
-  - checkout: self
-    clean: true
-    submodules: recursive
+  - bash: |
+      docker run \
+        --gpus all \
+        --shm-size=1024m \
+        --rm \
+        --volume $(Build.SourcesDirectory):/onnxruntime_src \
+        --volume $(Build.BinariesDirectory):/build \
+        onnxruntime_ortmodule_tests_image \
+          pip install --force-reinstall -r tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage1/requirements.txt
+    displayName: 'Install ORTModule Test Dependencies 1'
+    condition: succeededOrFailed()
 
-  - template: templates/run-docker-build-steps.yml
-    parameters:
-      RunDockerBuildArgs: |
-        -o ubuntu16.04 -d gpu -r $(Build.BinariesDirectory) \
-        -t onnxruntime_ortmodule_tests_image \
-        -x " \
-          --config RelWithDebInfo \
-          --enable_training \
-          --update --build \
-          --build_wheel \
-          " \
-        -u
-      DisplayName: 'Build'
+  - bash: |
+      docker run \
+        --gpus all \
+        --shm-size=1024m \
+        --rm \
+        --volume $(Build.SourcesDirectory):/onnxruntime_src \
+        --volume $(Build.BinariesDirectory):/build \
+        onnxruntime_ortmodule_tests_image \
+          pip install --force-reinstall -r tools/ci_build/github/linux/docker/scripts/training/ortmodule/stage2/requirements.txt
+    displayName: 'Install ORTModule Test Dependencies 2'
+    condition: succeededOrFailed()
 
   - bash: tools/ci_build/github/linux/docker/scripts/training/azure_scale_set_vm_mount_test_data.sh -p $(orttrainingtestdata-storage-key) -s "//orttrainingtestdata.file.core.windows.net/mnist" -d "/mnist"
     displayName: 'Mount MNIST'
@@ -55,9 +61,3 @@ jobs:
     displayName: 'Run orttraining_ortmodule_tests.py'
     condition: succeededOrFailed()
     timeoutInMinutes: 60
-
-  - template: templates/component-governance-component-detection-steps.yml
-    parameters:
-      condition: 'succeeded'
-
-  - template: templates/clean-agent-build-directory-step.yml

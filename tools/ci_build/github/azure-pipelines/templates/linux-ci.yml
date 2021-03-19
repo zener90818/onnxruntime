@@ -6,6 +6,8 @@ parameters:
   DoNodejsPack: 'false'
   DoNugetPack: 'false'
   NuPackScript: ''
+  RunORTModulePipeline: 'false'
+  ORTModulePipeline: ''
   ArtifactName: 'drop-linux'
   TimeoutInMinutes: 120
   # Controls whether unreleased onnx opsets are allowed. Default is set to 1
@@ -64,6 +66,10 @@ jobs:
         inputs:
           artifactName: ${{ parameters.ArtifactName }}
           targetPath: '$(Build.ArtifactStagingDirectory)'
+    - ${{ if eq(parameters['RunORTModulePipeline'], 'true') }}:
+      - template: |
+         ${{ parameters.ORTModulePipeline }}
+        displayName: 'Running ORTModule Pipeline'
     - template: component-governance-component-detection-steps.yml
       parameters :
         condition : 'succeeded'

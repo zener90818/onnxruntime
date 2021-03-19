@@ -15,6 +15,8 @@ jobs:
       --enable_nvtx_profile
       "
     DoNugetPack: 'false'
+    RunORTModulePipeline: 'true'
+    ORTModulePipeline: 'orttraining-linux-gpu-ortmodule-test-ci-pipeline.yml'
     ArtifactName: 'drop-linux'
     TimeoutInMinutes: 120
     # Enable unreleased onnx opsets in CI builds
