@@ -195,7 +195,7 @@ void ThreadPool::ParallelForFixedBlockSizeScheduling(const std::ptrdiff_t total,
   int num_work_items = static_cast<int>(std::min(static_cast<std::ptrdiff_t>(d_of_p), num_blocks));
   assert(num_work_items > 0);
 
-  LoopCounter lc(total, block_size);
+  LoopCounter lc(total, d_of_p, block_size);
   std::function<void(unsigned)> run_work = [&](unsigned idx) {
     unsigned my_home_shard = lc.GetHomeShard(idx);
     unsigned my_shard = my_home_shard;

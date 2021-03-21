@@ -168,6 +168,7 @@ static bool IsEnvVarDefined(const char* var) {
 }
   
 static bool USE_STICKY_WORKER_ASSIGNMENT = false;
+static bool USE_STICKY_INDEX_ASSIGNMENT = false;
 
 // Additional profiling of the number of tasks that are not run
 // immediately, and the number of times that a task is stolen.  [ Will
@@ -180,7 +181,13 @@ static std::atomic<uint64_t> tasks_stolen_on_wake;
 static std::atomic<uint64_t> used_preferred;
 static std::atomic<uint64_t> refreshed_preferred;
 static std::atomic<uint64_t> extra_wakeup;
+static std::atomic<uint64_t> tasks_as_last;
+static std::atomic<uint64_t> idx_as_last;
+static std::atomic<uint64_t> num_tasks_revoked;
+//static std::atomic<uint64_t> timing_us;
 static std::atomic<int> next_id;
+
+static thread_local unsigned my_last_idx;
 
 // Sticky worker assignment
 // ------------------------
@@ -189,6 +196,31 @@ static std::atomic<unsigned> next_worker;
 
 class ThreadPoolParallelSection;
 class ThreadPoolLoop;
+
+// Align to avoid false sharing with prior fields.  If required,
+// alignment or padding must be added subsequently to avoid false
+// sharing with later fields.  Note that:
+//
+// - The __x86_64__ value is twice the line size (64 bytes).  This
+//   accounts for 2-line prefetch behavior on some cores.
+//
+// - Ideally, ORT_ALIGN_TO_AVOID_FALSE_SHARING is used.  However, the
+//   definition of ThreadPoolParallelSection uses naive padding
+//   because C++11 does not support alignment constraints on
+//   allocation or expose stdlib.h aligned_alloc.  C++17 introduces
+//   support for aligned allocation which we could use here.
+
+#if defined(__x86_64__)
+#define ORT_FALSE_SHARING_BYTES 128
+#else
+#define ORT_FALSE_SHARING_BYTES 64
+#endif
+ 
+#define ORT_ALIGN_TO_AVOID_FALSE_SHARING alignas(ORT_FALSE_SHARING_BYTES)
+ 
+struct PaddingToAvoidFalseSharing {
+  char padding[ORT_FALSE_SHARING_BYTES];
+};
 
 // Extended Eigen thread pool interface, avoiding the need to modify
 // the ThreadPoolInterface.h header from the external Eigen
@@ -257,7 +289,9 @@ class ThreadPoolParallelSection {
   // tasks may be running currently, or may be present in work queues,
   // or may have been removed from the queues by
   // RunQueue::RevokeWithTag.
+  PaddingToAvoidFalseSharing padding_1;
   std::atomic<unsigned> tasks_finished{0};
+  PaddingToAvoidFalseSharing padding_2;
 
   // If non-null, the current loop that tasks should be executing.  We
   // need to be careful on access to the contents of current_loop
@@ -524,9 +558,9 @@ class RunQueue {
   // position, these conditions would be indistinguishable); (2) obtain
   // consistent snapshot of front_/back_ for Size operation using the
   // modification counters.
-  std::atomic<unsigned> front_;
-  std::atomic<unsigned> back_;
-  Elem array_[kSize];
+  ORT_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned> front_;
+  ORT_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned> back_;
+  ORT_ALIGN_TO_AVOID_FALSE_SHARING Elem array_[kSize];
 
   // SizeOrNotEmpty returns current queue size; if NeedSizeEstimate is false,
   // only whether the size is 0 is guaranteed to be correct.
@@ -652,7 +686,13 @@ class ThreadPoolTempl : public onnxruntime::concurrency::ExtendedThreadPoolInter
         USE_STICKY_WORKER_ASSIGNMENT = true;
       }
     }
-    ::std::cerr << "Starting " << num_threads_ << " worker threads\n";
+    if (IsEnvVarDefined("ORT_STICKY_INDEX")) {
+      auto e = GetEnv("ORT_STICKY_INDEX");
+      if (atoi(e.get())) {
+        ::std::cerr << "Running with sticky index flag set\n";
+        USE_STICKY_INDEX_ASSIGNMENT = true;
+      }
+    }
 
     // Calculate coprimes of all numbers [1, num_threads].
     // Coprimes are used for random walks over all threads in Steal
@@ -705,6 +745,10 @@ class ThreadPoolTempl : public onnxruntime::concurrency::ExtendedThreadPoolInter
         " used_preferred=" << used_preferred <<
         " refreshed_preferred=" << refreshed_preferred <<
         " extra_wakeup=" << extra_wakeup <<
+        " same_worker_as_last=" << tasks_as_last <<
+        " same_idx_as_last=" << idx_as_last <<
+        " revoked=" << num_tasks_revoked <<
+        //        " timing_us=" << timing_us <<
         "\n";
   }
 
@@ -865,6 +909,7 @@ void EndParallelSectionInternal(PerThread &pt,
   }
 
   // Wait for workers to exit ParLoopWorker
+  num_tasks_revoked+=tasks_revoked;
   auto tasks_to_wait_for = tasks_started - tasks_revoked;
   while (ps.tasks_finished < tasks_to_wait_for) {
     onnxruntime::concurrency::SpinPause();
@@ -918,6 +963,10 @@ void SummonWorkers(PerThread &pt,
   // on a shared counter.
   auto call_worker_fn = [&ps, worker_fn]() {
     unsigned my_idx = ++ps.worker_idx;
+    if (my_idx == my_last_idx) {
+      idx_as_last++;
+    }
+    my_last_idx = my_idx;
     worker_fn(my_idx);
     // After the assignment to ps.tasks_finished, the stack-allocated
     // ThreadPoolParallelSection object may be destroyed.
@@ -933,6 +982,15 @@ void SummonWorkers(PerThread &pt,
   int stats_used_preferred = 0;
   int stats_refreshed_preferred = 0;
   int stats_extra_wakeup = 0;
+  int stats_as_last = 0;
+
+  // For profiling, track how many tasks run on the same worker as
+  // last time
+  static thread_local std::vector<int> last;
+  if (last.size() < n) {
+    last.resize(n);
+  }
+  
   if (n > current_dop) {
     unsigned extra_needed = n - current_dop;
 
@@ -962,9 +1020,6 @@ void SummonWorkers(PerThread &pt,
       GetGoodWorkerHints(extra_needed, good_hints, alt_hints);
     }
 
-    //    ::std::stringstream tmp;
-    //    tmp << pt.main_thread_id << " -";
-    
     // Create the additional tasks, and push them to workers.
     for (auto i = 0u; i < extra_needed; i++) {
       Task t;
@@ -1002,7 +1057,6 @@ void SummonWorkers(PerThread &pt,
           }
         }
       }
-      //      tmp << " " << q_idx;
 
       // If the worker's queue accepts the task, then record it in
       // the vector of tasks that we will need to synchronize with on
@@ -1014,7 +1068,25 @@ void SummonWorkers(PerThread &pt,
       Queue& q = td.queue;
       unsigned w_idx;
       bool was_ready = worker_data_[q_idx].GetStatus() != WorkerData::ThreadStatus::Active;
-      t = q.PushBackWithTag(call_worker_fn, pt.tag, w_idx, was_ready);
+      if (USE_STICKY_INDEX_ASSIGNMENT) {
+        t = q.PushBackWithTag([&ps, worker_fn, idx]() {
+                                unsigned my_idx = idx+1;
+                                if (my_idx == my_last_idx) {
+                                  idx_as_last++;
+                                }
+                                my_last_idx = my_idx;
+                                worker_fn(my_idx);
+                                ps.tasks_finished++;
+                              },
+                              pt.tag,
+                              w_idx,
+                              was_ready);
+      } else {
+        t = q.PushBackWithTag(call_worker_fn,
+                              pt.tag,
+                              w_idx,
+                              was_ready);
+      }
       if (was_ready) {
         if (USE_STICKY_WORKER_ASSIGNMENT) {
           if (was_preferred) {
@@ -1037,22 +1109,21 @@ void SummonWorkers(PerThread &pt,
           stats_extra_wakeup++;
           worker_data_[Rand(&pt.rand) % num_threads_].EnsureAwake();
         }
+
+        if (q_idx == last[idx]) {
+          stats_as_last++;
+        }
+        last[idx] = q_idx;
       }
     }
-
-    //    static thread_local int ctr;
-    //    ctr++;
-    //    if ((ctr%1000) == 0) {
-    //      tmp << " of " << num_threads_ << "\n";
-    //      ::std::cerr << tmp.str();
-    //    }
   }
 
   // Merge per-thread stats to global atomics
-  extra_wakeup += stats_extra_wakeup;
-  tasks_ready += stats_tasks_ready;
-  used_preferred += stats_used_preferred;
-  refreshed_preferred += stats_refreshed_preferred;
+  if (stats_extra_wakeup) extra_wakeup += stats_extra_wakeup;
+  if (stats_tasks_ready) tasks_ready += stats_tasks_ready;
+  if (stats_used_preferred) used_preferred += stats_used_preferred;
+  if (stats_refreshed_preferred) refreshed_preferred += stats_refreshed_preferred;
+  if (stats_as_last) tasks_as_last += stats_as_last;
 }
 
 // Run a single parallel loop in an existing parallel section.  This
@@ -1105,7 +1176,7 @@ void RunInParallelSection(ThreadPoolParallelSection &ps,
 // Run a single parallel loop _without_ a parallel section.  This is a
 // special case of RunInParallelSection, avoiding code paths for
 // handing off multiple loops to the pool of workers.
-
+ 
 void RunInParallel(std::function<void(unsigned idx)> fn, unsigned n) override {
   PerThread *pt = GetPerThread();
   ThreadPoolParallelSection ps;
